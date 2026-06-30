@@ -10,7 +10,6 @@ import {
   Stack,
   Text,
 } from '@chakra-ui/react'
-import {Transaction, dnaToFloatString, toHexString} from 'idena-sdk-js'
 import {useIdentityState} from '../../shared/providers/identity-context'
 import {SecondaryButton, PrimaryButton} from '../../shared/components/button'
 import {
@@ -45,9 +44,12 @@ import {
   FormControlWithLabel,
 } from '../../shared/components/components'
 import {callRpc, toLocaleDna} from '../../shared/utils/utils'
+import {toHexString} from '../../shared/utils/buffers'
+import {dnaToFloatString} from '../../shared/utils/dna'
 import {bufferToHex} from '../../shared/utils/string'
 import {useFormatDna} from '../../shared/hooks/hooks'
 import {TxType} from '../../shared/types'
+import {Transaction} from '../../shared/models/transaction'
 import {
   DeleteIcon,
   ExclamationMarkIcon,

@@ -20,7 +20,6 @@
     "fs-extra",
     "google-protobuf",
     "i18next",
-    "idena-sdk-js",
     "leveldown",
     "levelup",
     "lowdb",
