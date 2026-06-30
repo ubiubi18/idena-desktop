@@ -50,7 +50,46 @@ const CHECKS = [
     name: 'Google API key',
     regex: /\bAIza[A-Za-z0-9_-]{20,}\b/g,
   },
+  {
+    name: 'GitHub token',
+    regex:
+      /\b(?:gh[pousr]_[A-Za-z0-9_]{36,}|github_pat_[A-Za-z0-9_]{22,}_[A-Za-z0-9_]{59,})\b/g,
+  },
+  {
+    name: 'AWS access key id',
+    regex: /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g,
+  },
+  {
+    name: 'Slack token',
+    regex: /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/g,
+  },
+  {
+    name: 'npm token',
+    regex: /\bnpm_[A-Za-z0-9]{36}\b/g,
+  },
+  {
+    name: 'JWT-like token',
+    regex: /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g,
+  },
+  {
+    name: 'private key block',
+    regex:
+      /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
+  },
+  {
+    name: 'contextual secret literal',
+    regex:
+      /\b(?:apiKey|api_key|privateKey|private_key|secret|token|password)\b\s*[:=]\s*['"`](?!test\b|test-|example\b|changeme\b|idena-restricted-node-key\b)[A-Za-z0-9_./+=-]{32,}['"`]/gi,
+  },
 ]
+
+function maskValue(value) {
+  const singleLine = String(value).replace(/\s+/g, ' ')
+  if (singleLine.length <= 12) return '[redacted]'
+  return `${singleLine.slice(0, 4)}...[redacted:${
+    singleLine.length
+  }]...${singleLine.slice(-4)}`
+}
 
 function listTrackedFiles() {
   return execFileSync(
@@ -107,7 +146,9 @@ if (findings.length > 0) {
   console.error('Release privacy check failed:')
   for (const finding of findings) {
     console.error(
-      `- ${finding.filePath}:${finding.line} ${finding.check}: ${finding.value}`
+      `- ${finding.filePath}:${finding.line} ${finding.check}: ${maskValue(
+        finding.value
+      )}`
     )
   }
   process.exit(1)
