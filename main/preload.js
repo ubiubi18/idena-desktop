@@ -1,18 +1,18 @@
 // eslint-disable-next-line import/no-extraneous-dependencies
 const electron = require('electron')
 
-const {
-  clipboard,
-  nativeImage,
-  ipcRenderer,
-  shell,
-  webFrame,
-} = electron
+const {clipboard, nativeImage, ipcRenderer, shell, webFrame} = electron
 
-const {
-  APP_INFO_COMMAND,
-  WINDOW_COMMAND,
-} = require('./channels')
+const levelup = require('levelup')
+const leveldown = require('leveldown')
+const sub = require('subleveldown')
+
+const {APP_INFO_COMMAND, WINDOW_COMMAND} = require('./channels')
+const flips = require('./stores/flips')
+const invites = require('./stores/invites')
+const contacts = require('./stores/contacts')
+const logger = require('./logger')
+const {prepareDb, dbPath} = require('./stores/setup')
 
 function getAppInfo() {
   try {
@@ -28,16 +28,6 @@ const isDev =
   process.env.NODE_ENV === 'development' ||
   process.env.ELECTRON_IS_DEV === '1' ||
   process.defaultApp === true
-
-const levelup = require('levelup')
-const leveldown = require('leveldown')
-const sub = require('subleveldown')
-
-const flips = require('./stores/flips')
-const invites = require('./stores/invites')
-const contacts = require('./stores/contacts')
-const logger = require('./logger')
-const {prepareDb, dbPath} = require('./stores/setup')
 
 process.once('loaded', () => {
   global.ipcRenderer = ipcRenderer

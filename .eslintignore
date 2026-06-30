@@ -2,3 +2,4 @@ renderer/.next
 renderer/out
 **/dist
 **/shared/models/proto/**
+test/e2e

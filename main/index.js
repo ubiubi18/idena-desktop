@@ -725,7 +725,9 @@ function sendMainWindowMsg(channel, message, data) {
   }
 }
 
-ipcMain.handle('search-image', async (_, query) => searchImages(query, {logger}))
+ipcMain.handle('search-image', async (_, query) =>
+  searchImages(query, {logger})
+)
 
 const KEY_VALUE = {}
 

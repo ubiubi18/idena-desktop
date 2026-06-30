@@ -60,7 +60,11 @@ function normalizeImageSearchResult(item) {
 
 function requestHttpsText(
   url,
-  {timeoutMs = HTTP_TIMEOUT_MS, maxBytes = MAX_RESPONSE_BYTES, headers = {}} = {}
+  {
+    timeoutMs = HTTP_TIMEOUT_MS,
+    maxBytes = MAX_RESPONSE_BYTES,
+    headers = {},
+  } = {}
 ) {
   const parsedUrl = url instanceof URL ? url : new URL(url)
   if (parsedUrl.protocol !== 'https:') {

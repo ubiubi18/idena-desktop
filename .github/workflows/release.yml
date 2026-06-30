@@ -13,17 +13,18 @@ jobs:
         os: [macos-latest, ubuntu-latest, windows-latest]
     steps:
       - name: Check out
-        uses: actions/checkout@v1
+        uses: actions/checkout@v5
 
       - name: Set tag
         id: refs
-        run: echo ::set-output name=tag::${GITHUB_REF#refs/*/}
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
         shell: bash
 
       - name: Setup Node.js
-        uses: actions/setup-node@v1
+        uses: actions/setup-node@v4
         with:
-          node-version: 14
+          node-version-file: .node-version
+          cache: npm
 
       - name: Install Linux canvas deps
         if: matrix.os == 'ubuntu-latest'

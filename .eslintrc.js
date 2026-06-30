@@ -1,6 +1,5 @@
 module.exports = {
-  plugins: ['testcafe'],
-  extends: ['wesbos', 'plugin:testcafe/recommended'],
+  extends: ['wesbos'],
   rules: {
     'no-use-before-define': ['error', 'nofunc'],
   },
