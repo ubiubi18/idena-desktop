@@ -10,21 +10,20 @@ const {
   // eslint-disable-next-line import/no-extraneous-dependencies
 } = require('electron')
 const {autoUpdater} = require('electron-updater')
-const isDev = require('electron-is-dev')
-const prepareNext = require('electron-next')
 const fs = require('fs-extra')
 const i18next = require('i18next')
-const {image_search: imageSearch} = require('duckduckgo-images-api')
 const macosVersion = require('macos-version')
 const semver = require('semver')
 const axios = require('axios')
 const {zoomIn, zoomOut, resetZoom} = require('./utils')
 const loadRoute = require('./utils/routes')
 const {getI18nConfig} = require('./language')
+const {searchImages} = require('./image-search')
 
 const isWin = process.platform === 'win32'
 const isMac = process.platform === 'darwin'
 const isLinux = process.platform === 'linux'
+const isDev = !app.isPackaged
 
 app.allowRendererProcessReuse = true
 
@@ -48,6 +47,9 @@ const {
   AUTO_UPDATE_COMMAND,
   NODE_COMMAND,
   NODE_EVENT,
+  APP_INFO_COMMAND,
+  APP_PATH_COMMAND,
+  WINDOW_COMMAND,
 } = require('./channels')
 const {
   startNode,
@@ -78,6 +80,17 @@ const isFirstInstance = app.requestSingleInstanceLock()
 
 const extractDnaUrl = (argv) => argv.find((item) => item.startsWith('dna://'))
 
+ipcMain.on(APP_INFO_COMMAND, (event) => {
+  event.returnValue = {
+    version: appVersion,
+    locale: app.getLocale(),
+  }
+})
+
+ipcMain.on(APP_PATH_COMMAND, (event, folder) => {
+  event.returnValue = app.getPath(folder)
+})
+
 if (isFirstInstance) {
   app.on('second-instance', (e, argv) => {
     // Protocol handler for win32 and linux
@@ -100,6 +113,9 @@ const createMainWindow = () => {
     height: 740,
     webPreferences: {
       nodeIntegration: false,
+      contextIsolation: false,
+      sandbox: false,
+      webSecurity: true,
       preload: join(__dirname, 'preload.js'),
     },
     icon: resolve(__dirname, 'static', 'icon-128@2x.png'),
@@ -317,8 +333,7 @@ const createTray = () => {
 }
 
 // Prepare the renderer once the app is ready
-app.on('ready', async () => {
-  await prepareNext('./renderer')
+app.on('ready', () => {
   const i18nConfig = getI18nConfig()
 
   i18next.init(i18nConfig, (err) => {
@@ -336,6 +351,17 @@ app.on('ready', async () => {
 
     checkForUpdates()
   })
+})
+
+ipcMain.on(WINDOW_COMMAND, (_event, command) => {
+  switch (command) {
+    case 'toggle-full-screen': {
+      if (!mainWindow) return
+      mainWindow.setFullScreen(!mainWindow.isFullScreen())
+      break
+    }
+    default:
+  }
 })
 
 if (!app.isDefaultProtocolClient('dna')) {
@@ -699,12 +725,7 @@ function sendMainWindowMsg(channel, message, data) {
   }
 }
 
-ipcMain.handle('search-image', async (_, query) =>
-  imageSearch({
-    query,
-    moderate: true,
-  })
-)
+ipcMain.handle('search-image', async (_, query) => searchImages(query, {logger}))
 
 const KEY_VALUE = {}
 

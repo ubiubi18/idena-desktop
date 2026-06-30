@@ -5,12 +5,29 @@ const {
   clipboard,
   nativeImage,
   ipcRenderer,
-  remote: {app},
   shell,
   webFrame,
 } = electron
 
-const isDev = require('electron-is-dev')
+const {
+  APP_INFO_COMMAND,
+  WINDOW_COMMAND,
+} = require('./channels')
+
+function getAppInfo() {
+  try {
+    return ipcRenderer.sendSync(APP_INFO_COMMAND) || {}
+  } catch {
+    return {}
+  }
+}
+
+const appInfo = getAppInfo()
+const [locale] = String(appInfo.locale || 'en').split('-')
+const isDev =
+  process.env.NODE_ENV === 'development' ||
+  process.env.ELECTRON_IS_DEV === '1' ||
+  process.defaultApp === true
 
 const levelup = require('levelup')
 const leveldown = require('leveldown')
@@ -40,12 +57,12 @@ process.once('loaded', () => {
 
   global.clipboard = clipboard
   global.nativeImage = nativeImage
-  ;[global.locale] = app.getLocale().split('-')
+  global.locale = locale
 
   global.getZoomLevel = () => webFrame.getZoomLevel()
   global.setZoomLevel = (level) => webFrame.setZoomLevel(level)
 
-  global.appVersion = app.getVersion()
+  global.appVersion = appInfo.version || '0.0.0'
 
   global.env = {
     NODE_ENV: process.env.NODE_ENV,
@@ -56,8 +73,7 @@ process.once('loaded', () => {
   }
 
   global.toggleFullScreen = () => {
-    const currentWindow = electron.remote.getCurrentWindow()
-    currentWindow.setFullScreen(!currentWindow.isFullScreen())
+    ipcRenderer.send(WINDOW_COMMAND, 'toggle-full-screen')
   }
 
   global.levelup = levelup
