@@ -1,6 +1,5 @@
 /* eslint-disable react/prop-types */
 import React, {createRef, useRef, useCallback, useState} from 'react'
-import Jimp from 'jimp'
 import {useTranslation} from 'react-i18next'
 import mousetrap from 'mousetrap'
 import {
@@ -42,6 +41,7 @@ import {
 import {ImageSearchDialog} from './image-search'
 import {colorPickerColor} from '../utils'
 import {useSuccessToast} from '../../../shared/hooks/use-toast'
+import {resizeImageToDataUrl} from '../../../shared/utils/image-canvas'
 import {
   AddImageIcon,
   BasketIcon,
@@ -195,31 +195,34 @@ export default function FlipEditor({
           editors[idx].execute('removeObject', data.replaceObjectId)
         }
 
-        Jimp.read(url).then((image) => {
-          image.getBase64Async('image/png').then((nextUrl) => {
-            const resizedNextUrl = imageResize(
-              global.nativeImage.createFromDataURL(nextUrl),
-              IMAGE_WIDTH,
-              IMAGE_HEIGHT
-            )
-            editor.addImageObject(resizedNextUrl).then((objectProps) => {
-              if (data.replaceObjectId) {
-                editors[idx].setObjectPropertiesQuietly(
-                  objectProps.id,
-                  replaceObjectProps
-                )
-              }
+        resizeImageToDataUrl(url, {
+          width: IMAGE_WIDTH,
+          height: IMAGE_HEIGHT,
+          type: 'image/png',
+          exact: false,
+        }).then((nextUrl) => {
+          const resizedNextUrl = imageResize(
+            global.nativeImage.createFromDataURL(nextUrl),
+            IMAGE_WIDTH,
+            IMAGE_HEIGHT
+          )
+          editor.addImageObject(resizedNextUrl).then((objectProps) => {
+            if (data.replaceObjectId) {
+              editors[idx].setObjectPropertiesQuietly(
+                objectProps.id,
+                replaceObjectProps
+              )
+            }
 
-              handleOnChanged()
-              setActiveObjectId(objectProps.id)
-              setActiveObjectUrl(resizedNextUrl)
+            handleOnChanged()
+            setActiveObjectId(objectProps.id)
+            setActiveObjectUrl(resizedNextUrl)
 
-              if (onDone) onDone()
+            if (onDone) onDone()
 
-              if (editors[idx]._graphics) {
-                editors[idx]._graphics.renderAll()
-              }
-            })
+            if (editors[idx]._graphics) {
+              editors[idx]._graphics.renderAll()
+            }
           })
         })
       }

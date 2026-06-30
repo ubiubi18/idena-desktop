@@ -3,7 +3,7 @@
   "productName": "Idena",
   "version": "0.0.1",
   "main": "main/index.js",
-  "repository": "idena-network/idena-desktop",
+  "repository": "ubiubi18/idena-desktop",
   "license": "MIT",
   "engines": {
     "node": ">=24.15.0 <25",
@@ -13,7 +13,7 @@
     "preinstall": "node scripts/check-runtime-install.js",
     "postinstall": "node scripts/rebuild-electron-runtime-deps.js",
     "start": "dotenv -e .env.local node scripts/start-electron-dev.js",
-    "build": "node scripts/run-next-static-build.js",
+    "build": "npm run build:renderer",
     "dist": "npm run build && node scripts/run-electron-builder.js",
     "dist:win": "npm run build && node scripts/run-electron-builder.js --win --publish onTag",
     "dist:mac": "npm run build && node scripts/run-electron-builder.js --mac --publish onTag",
@@ -30,7 +30,18 @@
     "i18n:init": "npm run i18n:clean && npm run i18n:scan",
     "i18n:scan": "i18next-scanner",
     "i18n:clean": "node scripts/clean-paths.js locales/en locales/id locales/fr locales/de locales/es locales/ru locales/zh locales/ko locales/hr locales/hi locales/ro locales/uk locales/sr locales/it locales/pt locales/pl locales/si locales/tr locales/bg locales/sv locales/ja locales/el",
-    "e2e": "node scripts/e2e-disabled.js"
+    "e2e": "node scripts/e2e-disabled.js",
+    "setup:sources": "node scripts/setup-sources.js",
+    "update:sources": "node scripts/setup-sources.js --update",
+    "build:node": "node scripts/build-node-from-sources.js",
+    "build:node:mac:arm64": "npm run setup:sources && bash scripts/build-node-macos-arm64.sh \"$HOME/Library/Application Support/Idena/node/idena-go\"",
+    "build:renderer": "node scripts/run-next-static-build.js",
+    "audit:privacy": "node scripts/check-release-privacy.js",
+    "audit:metadata": "node scripts/check-release-metadata.js",
+    "audit:artifacts": "node scripts/check-release-artifacts.js",
+    "audit:deps": "node scripts/check-dependency-footprint.js",
+    "audit:electron": "node scripts/check-electron-safety.js",
+    "release:check": "node scripts/release-check.js"
   },
   "build": {
     "appId": "io.idena",
@@ -49,6 +60,18 @@
       "!data/**",
       "!logs",
       "!logs/**",
+      "!vendor",
+      "!vendor/**",
+      "!build",
+      "!build/**",
+      "!idena-go",
+      "!idena-go/**",
+      "!idena-wasm",
+      "!idena-wasm/**",
+      "!idena-wasm-binding",
+      "!idena-wasm-binding/**",
+      "!test",
+      "!test/**",
       "!coverage",
       "!coverage/**",
       "!.nyc_output",
@@ -68,13 +91,25 @@
       "publish": [
         "github"
       ],
-      "icon": "main/static/icons/icon_512_2x.ico"
+      "icon": "main/static/icons/icon_512_2x.ico",
+      "extraResources": [
+        {
+          "from": "build/node/current",
+          "to": "node"
+        }
+      ]
     },
     "mac": {
       "publish": [
         "github"
       ],
-      "icon": "main/static/icons/icon-512@2x.icns"
+      "icon": "main/static/icons/icon-512@2x.icns",
+      "extraResources": [
+        {
+          "from": "build/node/current",
+          "to": "node"
+        }
+      ]
     },
     "linux": {
       "target": [
@@ -84,7 +119,13 @@
         "github"
       ],
       "icon": "main/static/icons/icon-512@2x.icns",
-      "maintainer": "Idena <info@idena.io> (https://idena.io/)"
+      "maintainer": "Idena <info@idena.io> (https://idena.io/)",
+      "extraResources": [
+        {
+          "from": "build/node/current",
+          "to": "node"
+        }
+      ]
     }
   },
   "devDependencies": {
@@ -102,14 +143,17 @@
     "i18next-scanner": "^2.10.3",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
-    "react-dom": "^16.8.4"
+    "react-dom": "^16.8.4",
+    "@toast-ui/react-image-editor": "^1.2.0",
+    "next": "^9.5.1",
+    "next-google-fonts": "^1.2.1",
+    "fabric": "^4.6.0"
   },
   "dependencies": {
     "@chakra-ui/react": "^1.0.0",
     "@emotion/react": "^11.0.0",
     "@emotion/styled": "^11.0.0",
     "@react-hook/hover": "^4.0.0",
-    "@toast-ui/react-image-editor": "^1.2.0",
     "@xstate/react": "^3.2.1",
     "ansi-to-react": "^6.0.5",
     "axios": "^1.13.2",
@@ -127,7 +171,6 @@
     "google-protobuf": "^3.14.0",
     "i18next": "^19.0.1",
     "idena-sdk-js": "^0.1.0",
-    "jimp": "^0.9.6",
     "leveldown": "^5.6.0",
     "levelup": "^4.4.0",
     "lowdb": "^1.0.0",
@@ -135,8 +178,6 @@
     "mousetrap": "^1.6.3",
     "multiformats": "^9.7.1",
     "nanoid": "^3.3.11",
-    "next": "^9.5.1",
-    "next-google-fonts": "^1.2.1",
     "pino": "^5.13.2",
     "prettier": "^2.8.7",
     "progress-stream": "^2.0.0",
@@ -175,7 +216,11 @@
     "shell-quote": "^1.8.3",
     "tar": "^7.5.13",
     "terser": "^4.8.1",
-    "tui-image-editor": "3.15.3"
+    "tui-image-editor": "3.15.3",
+    "fabric": {
+      "canvas": "3.2.0",
+      "jsdom": "26.1.0"
+    }
   },
   "prettier": {
     "trailingComma": "es5",

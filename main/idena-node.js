@@ -12,6 +12,8 @@ const appDataPath = require('./app-data-path')
 const logger = require('./logger')
 
 const idenaBin = 'idena-go'
+const pinnedNodeVersion = '1.1.2'
+const minNodeBinarySize = 1024 * 1024
 const idenaNodeReleasesUrl =
   'https://api.github.com/repos/idena-network/idena-go/releases/latest'
 const idenaChainDbFolder = 'idenachain.db'
@@ -28,6 +30,132 @@ const getNodeConfigFile = () => path.join(getNodeDir(), 'config.json')
 
 const getTempNodeFile = () =>
   path.join(getNodeDir(), `new-${idenaBin}${getBinarySuffix()}`)
+
+function getBundledNodeFileCandidates() {
+  const suffix = getBinarySuffix()
+  const candidates = []
+
+  if (process.resourcesPath) {
+    candidates.push(path.join(process.resourcesPath, 'node', idenaBin + suffix))
+  }
+
+  candidates.push(
+    path.resolve(
+      __dirname,
+      '..',
+      'build',
+      'node',
+      'current',
+      idenaBin + suffix
+    ),
+    path.resolve(process.cwd(), 'build', 'node', 'current', idenaBin + suffix),
+    path.resolve(__dirname, '..', 'node', idenaBin + suffix),
+    path.resolve(__dirname, '..', '..', 'node', idenaBin + suffix)
+  )
+
+  return candidates
+}
+
+async function findBundledNodeFile() {
+  for (const candidate of getBundledNodeFileCandidates()) {
+    try {
+      const stats = await fs.stat(candidate)
+      if (stats && stats.size >= minNodeBinarySize) {
+        return candidate
+      }
+    } catch (_) {
+      // Try the next candidate.
+    }
+  }
+
+  return null
+}
+
+function getBinaryVersion(binaryPath) {
+  return new Promise((resolve, reject) => {
+    const nodeVersion = spawn(binaryPath, ['--version'])
+    let output = ''
+
+    nodeVersion.stdout.on('data', (data) => {
+      output += data.toString()
+    })
+    nodeVersion.stderr.on('data', (data) => {
+      output += data.toString()
+    })
+    nodeVersion.on('error', (err) => reject(err))
+    nodeVersion.on('exit', (code) => {
+      if (code) {
+        reject(new Error(`cannot resolve node version, exit code ${code}`))
+        return
+      }
+
+      const coerced = semver.coerce(output)
+      if (!coerced || !semver.valid(coerced.version)) {
+        reject(new Error(`cannot resolve node version, output: ${output}`))
+        return
+      }
+
+      resolve(coerced.version)
+    })
+  })
+}
+
+async function copyBundledNode(tempNodeFile, onProgress) {
+  const bundledNodeFile = await findBundledNodeFile()
+
+  if (!bundledNodeFile) {
+    return null
+  }
+
+  const version = await getBinaryVersion(bundledNodeFile)
+
+  if (version !== pinnedNodeVersion) {
+    logger.warn('ignoring incompatible bundled node binary', {
+      bundledNodeFile,
+      version,
+      expected: pinnedNodeVersion,
+    })
+    return null
+  }
+
+  const stats = await fs.stat(bundledNodeFile)
+
+  if (onProgress) {
+    onProgress({
+      version,
+      percentage: 5,
+      transferred: 0,
+      length: stats.size,
+      eta: 0,
+      runtime: 0,
+      speed: 0,
+      stage: 'bundled-copy-start',
+    })
+  }
+
+  await fs.copy(bundledNodeFile, tempNodeFile, {overwrite: true})
+
+  if (process.platform !== 'win32') {
+    await fs.chmod(tempNodeFile, '755')
+  }
+
+  if (onProgress) {
+    onProgress({
+      version,
+      percentage: 100,
+      transferred: stats.size,
+      length: stats.size,
+      eta: 0,
+      runtime: 0,
+      speed: 0,
+      stage: 'bundled-copy-complete',
+    })
+  }
+
+  logger.info('prepared Idena node from bundled binary', {bundledNodeFile})
+
+  return version
+}
 
 const getNodeChainDbFolder = () =>
   path.join(getNodeDataDir(), idenaChainDbFolder)
@@ -71,12 +199,19 @@ async function downloadNode(onProgress) {
   // eslint-disable-next-line no-async-promise-executor
   return new Promise(async (resolve, reject) => {
     try {
+      fs.ensureDirSync(getNodeDir())
+
+      const bundledVersion = await copyBundledNode(
+        getTempNodeFile(),
+        onProgress
+      )
+      if (bundledVersion) {
+        resolve(bundledVersion)
+        return
+      }
+
       const url = await getReleaseUrl()
       const version = await getRemoteVersion()
-
-      if (!fs.existsSync(getNodeDir())) {
-        fs.mkdirSync(getNodeDir())
-      }
 
       const writer = fs.createWriteStream(getTempNodeFile())
       writer.on('finish', () => writer.close(() => resolve(version)))

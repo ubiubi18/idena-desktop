@@ -6,7 +6,6 @@
 import {encode} from 'rlp'
 import axios from 'axios'
 import dayjs from 'dayjs'
-import Jimp from 'jimp'
 import {loadPersistentStateValue, persistItem} from '../../shared/utils/persist'
 import {FlipType} from '../../shared/types'
 import {
@@ -19,6 +18,7 @@ import {submitFlip} from '../../shared/api/dna'
 import {signNonce} from '../dna/utils'
 import i18n from '../../i18n'
 import ImageAccess from './ImageAccess'
+import {resizeImageToDataUrl} from '../../shared/utils/image-canvas'
 
 const convert = require('color-convert')
 const StackBlur = require('stackblur-canvas')
@@ -906,12 +906,13 @@ export async function protectFlip({
   const compressedImages = await Promise.all(
     protectedFlips.map((image) =>
       image
-        ? Jimp.read(image).then((raw) =>
-            raw
-              .resize(240, 180)
-              .quality(60) // jpeg quality
-              .getBase64Async('image/jpeg')
-          )
+        ? resizeImageToDataUrl(image, {
+            width: 240,
+            height: 180,
+            type: 'image/jpeg',
+            quality: 0.6,
+            exact: true,
+          })
         : image
     )
   )
@@ -927,13 +928,16 @@ export async function prepareAdversarialImages(images, send) {
 
   await Promise.all(
     ids.map((img, idx) =>
-      Jimp.read(img.thumbnail).then((image) => {
-        image.getBase64Async('image/png').then(async (nextUrl) => {
+      resizeImageToDataUrl(img.thumbnail, {
+        type: 'image/png',
+        exact: false,
+      }).then((nextUrl) => {
+        if (nextUrl) {
           send('CHANGE_ADVERSARIAL', {
             image: nextUrl,
             currentIndex: idx,
           })
-        })
+        }
       })
     )
   )
