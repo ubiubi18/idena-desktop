@@ -42,6 +42,7 @@ import {ImageSearchDialog} from './image-search'
 import {colorPickerColor} from '../utils'
 import {useSuccessToast} from '../../../shared/hooks/use-toast'
 import {resizeImageToDataUrl} from '../../../shared/utils/image-canvas'
+import ImageEditor from './simple-image-editor'
 import {
   AddImageIcon,
   BasketIcon,
@@ -57,11 +58,6 @@ import {
   SearchIcon,
   UndoIcon,
 } from '../../../shared/components/icons'
-
-const ImageEditor =
-  typeof window !== 'undefined'
-    ? require('@toast-ui/react-image-editor').default
-    : null
 
 const BottomMenu = {
   Main: 0,

@@ -3,8 +3,6 @@ import React from 'react'
 import Head from 'next/head'
 import {ChakraProvider, extendTheme} from '@chakra-ui/react'
 import GoogleFonts from 'next-google-fonts'
-// eslint-disable-next-line import/no-extraneous-dependencies
-import 'tui-image-editor/dist/tui-image-editor.css'
 import '../i18n'
 import {QueryClientProvider} from 'react-query'
 import {theme} from '../shared/theme'
