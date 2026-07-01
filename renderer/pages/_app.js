@@ -2,7 +2,6 @@
 import React from 'react'
 import Head from 'next/head'
 import {ChakraProvider, extendTheme} from '@chakra-ui/react'
-import GoogleFonts from 'next-google-fonts'
 import '../i18n'
 import {QueryClientProvider} from 'react-query'
 import {theme} from '../shared/theme'
@@ -21,8 +20,17 @@ import {queryClient} from '../shared/utils/utils'
 export default function App({Component, err, ...pageProps}) {
   return (
     <>
-      <GoogleFonts href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
       <Head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin=""
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
         <link href="/static/scrollbars.css" rel="stylesheet" />
       </Head>
 

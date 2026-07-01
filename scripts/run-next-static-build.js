@@ -54,5 +54,4 @@ function runNext(args) {
   })
 })
 
-runNext(['build', 'renderer'])
-runNext(['export', 'renderer'])
+runNext(['build', '--webpack', 'renderer'])
