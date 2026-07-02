@@ -16,8 +16,7 @@ import {VotingNotificationProvider} from '../shared/providers/voting-notificatio
 import {OnboardingProvider} from '../shared/providers/onboarding-context'
 import {queryClient} from '../shared/utils/utils'
 
-// err is a workaround for https://github.com/zeit/next.js/issues/8592
-export default function App({Component, err, ...pageProps}) {
+export default function App({Component, ...pageProps}) {
   return (
     <>
       <Head>
@@ -36,7 +35,7 @@ export default function App({Component, err, ...pageProps}) {
 
       <ChakraProvider theme={extendTheme(theme)}>
         <AppProviders>
-          <Component err={err} {...pageProps} />
+          <Component {...pageProps} />
         </AppProviders>
       </ChakraProvider>
     </>
