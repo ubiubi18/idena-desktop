@@ -37,6 +37,26 @@ const blockedPatterns = [
     name: 'enableRemoteModule enabled',
     regex: /\benableRemoteModule\s*:\s*true\b/g,
   },
+  {
+    name: 'raw shell.openExternal call',
+    regex: /\bshell\s*\.\s*openExternal\s*\(/g,
+  },
+  {
+    name: 'raw shell.openExternal preload exposure',
+    regex: /\bglobal\s*\.\s*openExternal\s*=\s*shell\s*\.\s*openExternal\b/g,
+  },
+  {
+    name: 'raw ipcRenderer preload exposure',
+    regex: /\bglobal\s*\.\s*ipcRenderer\s*=\s*ipcRenderer\b/g,
+  },
+  {
+    name: 'raw clipboard preload exposure',
+    regex: /\bglobal\s*\.\s*clipboard\s*=\s*clipboard\b/g,
+  },
+  {
+    name: 'raw nativeImage preload exposure',
+    regex: /\bglobal\s*\.\s*nativeImage\s*=\s*nativeImage\b/g,
+  },
 ]
 
 function listTrackedFiles() {
@@ -95,6 +115,66 @@ if (!/\bnodeIntegration\s*:\s*false\b/.test(mainIndex)) {
     line: 1,
     name: 'main window nodeIntegration guard',
     value: 'nodeIntegration: false missing',
+  })
+}
+
+if (!/\bsetWindowOpenHandler\s*\(/.test(mainIndex)) {
+  findings.push({
+    filePath: 'main/index.js',
+    line: 1,
+    name: 'main window new-window guard',
+    value: 'setWindowOpenHandler missing',
+  })
+}
+
+if (!/\bwill-navigate\b/.test(mainIndex)) {
+  findings.push({
+    filePath: 'main/index.js',
+    line: 1,
+    name: 'main window navigation guard',
+    value: 'will-navigate guard missing',
+  })
+}
+
+const preload = fs.existsSync('main/preload.js')
+  ? fs.readFileSync('main/preload.js', 'utf8')
+  : ''
+if (
+  !/\bglobal\s*\.\s*openExternal\s*=\s*\(url\)\s*=>\s*openExternalUrl\s*\(/.test(
+    preload
+  )
+) {
+  findings.push({
+    filePath: 'main/preload.js',
+    line: 1,
+    name: 'safe external URL preload bridge',
+    value: 'openExternalUrl bridge missing',
+  })
+}
+
+if (
+  !/\bconst\s+safeIpcRenderer\s*=\s*createSafeIpcRenderer\s*\(\s*ipcRenderer\s*\)[\s\S]*?\bglobal\s*\.\s*ipcRenderer\s*=\s*safeIpcRenderer\b/.test(
+    preload
+  )
+) {
+  findings.push({
+    filePath: 'main/preload.js',
+    line: 1,
+    name: 'safe ipcRenderer preload bridge',
+    value: 'createSafeIpcRenderer bridge missing',
+  })
+}
+
+if (
+  !/\bconst\s+safeImageBridge\s*=\s*createSafeImageBridge\s*\(\s*\{\s*clipboard\s*,\s*nativeImage\s*\}\s*\)[\s\S]*?\bglobal\s*\.\s*clipboard\s*=\s*\{[\s\S]*?\breadImageDataURL\s*:\s*safeImageBridge\s*\.\s*readImageDataURL[\s\S]*?\bglobal\s*\.\s*image\s*=\s*\{[\s\S]*?\bresizeDataURL\s*:\s*safeImageBridge\s*\.\s*resizeDataURL/.test(
+    preload
+  )
+) {
+  findings.push({
+    filePath: 'main/preload.js',
+    line: 1,
+    name: 'safe image preload bridge',
+    value: 'createSafeImageBridge bridge missing',
   })
 }
 

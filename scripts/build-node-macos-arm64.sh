@@ -20,6 +20,26 @@ if [[ -z "${IDENA_DESKTOP_IDENA_GO_DIR:-}" && -z "${IDENA_DESKTOP_IDENA_WASM_BIN
   USING_DEFAULT_SOURCE_DIRS=1
 fi
 
+encoded_rustflags() {
+  local separator=$'\x1f'
+  local flags=()
+
+  if [[ -n "${RUSTFLAGS:-}" ]]; then
+    # Preserve simple existing flags while using Cargo's encoded format for paths.
+    read -r -a flags <<<"${RUSTFLAGS}"
+  fi
+
+  flags+=(
+    "--remap-path-prefix=${HOME}=~"
+    "--remap-path-prefix=${CARGO_HOME_DIR}=CARGO_HOME"
+    "--remap-path-prefix=${ROOT_DIR}=workspace"
+    "--remap-path-prefix=${WASM_SRC_DIR}=idena-wasm"
+  )
+
+  local IFS="${separator}"
+  printf '%s' "${flags[*]}"
+}
+
 relative_path() {
   node -e "const path = require('path'); const relative = path.relative(process.argv[1], process.argv[2]) || '.'; console.log(relative.startsWith('.') ? relative : './' + relative)" "$1" "$2"
 }
@@ -36,7 +56,8 @@ prepare_default_sources() {
 
 if ! command -v cargo >/dev/null 2>&1 || ! command -v rustc >/dev/null 2>&1; then
   echo "Rust toolchain is missing. Install rustup first:" >&2
-  echo "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal" >&2
+  echo "brew install rustup-init" >&2
+  echo "rustup-init -y --profile minimal" >&2
   exit 1
 fi
 
@@ -78,8 +99,7 @@ fi
 echo "Building libidena_wasm for aarch64-apple-darwin..."
 (
   cd "${WASM_SRC_DIR}"
-  export RUSTFLAGS="${RUSTFLAGS:-} --remap-path-prefix=${HOME}=~ --remap-path-prefix=${CARGO_HOME_DIR}=CARGO_HOME --remap-path-prefix=${ROOT_DIR}=workspace --remap-path-prefix=${WASM_SRC_DIR}=idena-wasm"
-  cargo build --release --target aarch64-apple-darwin
+  CARGO_ENCODED_RUSTFLAGS="$(encoded_rustflags)" RUSTFLAGS= cargo build --release --target aarch64-apple-darwin
 )
 
 mkdir -p "${WASM_BINDING_DIR}/lib"

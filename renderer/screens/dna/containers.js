@@ -33,6 +33,7 @@ import {
   appendTxHash,
   handleCallbackUrl,
   appendParam,
+  urlLogContext,
 } from './utils'
 import {
   Dialog,
@@ -385,10 +386,13 @@ export function DnaSendDialog({
                 if (isValidUrl(callbackUrl)) {
                   const callbackUrlWithHash = appendTxHash(callbackUrl, hash)
 
-                  global.logger.info('Received dna://send cb url', callbackUrl)
+                  global.logger.info(
+                    'Received dna://send cb url',
+                    urlLogContext(callbackUrl)
+                  )
                   global.logger.info(
                     'Append hash to cb url',
-                    callbackUrlWithHash.href
+                    urlLogContext(callbackUrlWithHash)
                   )
 
                   await handleCallbackUrl(callbackUrlWithHash, callbackFormat, {
@@ -423,7 +427,10 @@ export function DnaSendDialog({
                     .finally(() => setIsSubmitting(false))
                 } else if (callbackUrl) {
                   setIsSubmitting(false)
-                  global.logger.error('Invalid dna://send cb url', callbackUrl)
+                  global.logger.error(
+                    'Invalid dna://send cb url',
+                    urlLogContext(callbackUrl)
+                  )
                 } else {
                   await sendDna({from, to, amount, comment})
                   setIsSubmitting(false)
@@ -627,10 +634,13 @@ export function DnaRawDialog({
                 if (isValidUrl(callbackUrl)) {
                   const callbackUrlWithHash = appendTxHash(callbackUrl, hash)
 
-                  global.logger.info('Received dna://rawTx cb url', callbackUrl)
+                  global.logger.info(
+                    'Received dna://rawTx cb url',
+                    urlLogContext(callbackUrl)
+                  )
                   global.logger.info(
                     'Append hash to cb url',
-                    callbackUrlWithHash.href
+                    urlLogContext(callbackUrlWithHash)
                   )
 
                   await handleCallbackUrl(callbackUrlWithHash, callbackFormat, {
@@ -662,7 +672,10 @@ export function DnaRawDialog({
                     .finally(() => setIsSubmitting(false))
                 } else {
                   setIsSubmitting(false)
-                  global.logger.error('Invalid dna://send cb url', callbackUrl)
+                  global.logger.error(
+                    'Invalid dna://send cb url',
+                    urlLogContext(callbackUrl)
+                  )
                 }
               })
               .catch(({message}) => {

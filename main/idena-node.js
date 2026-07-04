@@ -10,10 +10,14 @@ const lineReader = require('reverse-line-reader')
 // eslint-disable-next-line import/no-extraneous-dependencies
 const appDataPath = require('./app-data-path')
 const logger = require('./logger')
+const {
+  MIN_NODE_BINARY_SIZE,
+  assertSafeNodeDownloadUrl,
+  validateDownloadedNode,
+} = require('./node-download-safety')
 
 const idenaBin = 'idena-go'
 const pinnedNodeVersion = '1.1.2'
-const minNodeBinarySize = 1024 * 1024
 const idenaNodeReleasesUrl =
   'https://api.github.com/repos/idena-network/idena-go/releases/latest'
 const idenaChainDbFolder = 'idenachain.db'
@@ -60,7 +64,7 @@ async function findBundledNodeFile() {
   for (const candidate of getBundledNodeFileCandidates()) {
     try {
       const stats = await fs.stat(candidate)
-      if (stats && stats.size >= minNodeBinarySize) {
+      if (stats && stats.size >= MIN_NODE_BINARY_SIZE) {
         return candidate
       }
     } catch (_) {
@@ -181,7 +185,9 @@ const getReleaseUrl = async () => {
 
   const asset = data.assets.filter((x) => x.name.startsWith(assetName))
 
-  return asset.length ? asset[0].browser_download_url : null
+  return asset.length
+    ? assertSafeNodeDownloadUrl(asset[0].browser_download_url)
+    : null
 }
 
 const getRemoteVersion = async () => {
@@ -213,21 +219,55 @@ async function downloadNode(onProgress) {
       const url = await getReleaseUrl()
       const version = await getRemoteVersion()
 
-      const writer = fs.createWriteStream(getTempNodeFile())
-      writer.on('finish', () => writer.close(() => resolve(version)))
-      writer.on('error', reject)
+      if (!url) {
+        throw new Error('Idena node release asset was not found')
+      }
+      if (!version) {
+        throw new Error('Idena node release version was not found')
+      }
 
       const response = await axios.request({
         method: 'get',
         url,
         responseType: 'stream',
       })
+      const contentLength = Number.parseInt(
+        response.headers['content-length'],
+        10
+      )
+      if (
+        Number.isFinite(contentLength) &&
+        contentLength < MIN_NODE_BINARY_SIZE
+      ) {
+        throw new Error('Idena node download is unexpectedly small')
+      }
+
+      const writer = fs.createWriteStream(getTempNodeFile())
+      writer.on('finish', () =>
+        writer.close(async () => {
+          try {
+            const validatedVersion = await validateDownloadedNode({
+              filePath: getTempNodeFile(),
+              expectedVersion: version,
+              getBinaryVersion,
+              stat: fs.stat,
+              chmod: fs.chmod,
+            })
+            resolve(validatedVersion)
+          } catch (err) {
+            reject(err)
+          }
+        })
+      )
+      writer.on('error', reject)
 
       const str = progress({
         time: 1000,
-        length: parseInt(response.headers['content-length'], 10),
+        length: contentLength,
       })
 
+      response.data.on('error', reject)
+      str.on('error', reject)
       str.on('progress', (p) => {
         onProgress({...p, version})
       })

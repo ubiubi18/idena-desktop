@@ -28,7 +28,13 @@ jobs:
 
       - name: Set tag
         id: refs
-        run: echo "tag=${GITHUB_REF#refs/*/}" >> "$GITHUB_OUTPUT"
+        run: |
+          tag="${GITHUB_REF#refs/*/}"
+          if [[ ! "${tag}" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
+            echo "Unsupported release tag: ${tag}" >&2
+            exit 1
+          fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
         shell: bash
 
       - name: Setup Node.js
@@ -63,7 +69,8 @@ jobs:
             brew install go
           fi
           if ! command -v rustup >/dev/null 2>&1; then
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+            brew install rustup-init
+            rustup-init -y --profile minimal --no-modify-path
             echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
             export PATH="$HOME/.cargo/bin:$PATH"
           fi
@@ -88,13 +95,23 @@ jobs:
       - name: Run release check
         run: npm run release:check
 
+      - name: Prepare bundled node
+        run: npm run prepare:node
+
       - name: Bump version
-        run: npm --no-git-tag-version version --allow-same-version ${{ steps.refs.outputs.tag }}
+        env:
+          RELEASE_TAG: ${{ steps.refs.outputs.tag }}
+        run: npm --no-git-tag-version version --allow-same-version "${RELEASE_TAG}"
+        shell: bash
 
       - name: Build renderer
         run: npm run build
 
       - name: Build & release
-        run: node scripts/run-electron-builder.js ${{ matrix.electron_builder_args }}
         env:
+          ELECTRON_BUILDER_ARGS: ${{ matrix.electron_builder_args }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          read -r -a electron_builder_args <<< "${ELECTRON_BUILDER_ARGS}"
+          node scripts/run-electron-builder.js "${electron_builder_args[@]}"
+        shell: bash

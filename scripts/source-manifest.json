@@ -6,7 +6,7 @@
       "path": "idena-go",
       "url": "https://github.com/ubiubi18/idena-go.git",
       "ref": "vibe/clean-modern-fork",
-      "commit": "eb42ae52b21f0d03c96c37f347040eaf157209c4",
+      "commit": "9d3823f3c52def461943068b41288ff01c0e78ad",
       "requiredFiles": ["go.mod", "main.go"]
     },
     {
@@ -14,7 +14,7 @@
       "path": "idena-wasm",
       "url": "https://github.com/ubiubi18/idena-wasm.git",
       "ref": "vibe/clean-modern-fork",
-      "commit": "597722a294f8ca95da522f31f1b126cbaf383b93",
+      "commit": "47747d1f217cb724ba4e19d45ff8cc18791e1392",
       "requiredFiles": ["Cargo.toml"]
     },
     {
@@ -22,7 +22,7 @@
       "path": "idena-wasm-binding",
       "url": "https://github.com/ubiubi18/idena-wasm-binding.git",
       "ref": "vibe/clean-modern-fork",
-      "commit": "3b78778061eb6203d84327c1a6f776300fc7ad32",
+      "commit": "47b198d9b1947de743eb28d7d404a3ead877c720",
       "requiredFiles": ["go.mod", "lib"]
     }
   ]

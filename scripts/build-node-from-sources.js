@@ -7,7 +7,7 @@ const {spawnSync} = require('child_process')
 const ROOT = path.join(__dirname, '..')
 const PINNED_NODE_VERSION = '1.1.2'
 const MIN_NODE_BINARY_SIZE = 1024 * 1024
-const DEFAULT_GO_TOOLCHAIN = process.env.IDENA_GO_GOTOOLCHAIN || 'go1.19.13'
+const DEFAULT_GO_TOOLCHAIN = process.env.IDENA_GO_GOTOOLCHAIN || 'go1.26.4'
 
 function parseArgs(argv) {
   const options = {
@@ -125,6 +125,7 @@ function windowsMsysUcrtBinCandidates() {
 
   const candidates = [
     'C:\\msys64\\ucrt64\\bin',
+    'C:\\ProgramData\\chocolatey\\lib\\mingw\\tools\\install\\mingw64\\bin',
     process.env.LOCALAPPDATA &&
       path.join(
         process.env.LOCALAPPDATA,
@@ -161,6 +162,20 @@ function windowsMsysUcrtBinCandidates() {
   }
 
   return candidates
+}
+
+function assertNativeBuildTarget(options) {
+  if (options.platform !== process.platform) {
+    throw new Error(
+      `cross-platform node builds are not supported by this script: requested ${options.platform}, running on ${process.platform}`
+    )
+  }
+
+  if (options.arch !== process.arch) {
+    throw new Error(
+      `cross-architecture node builds are not supported by this script: requested ${options.arch}, running on ${process.arch}`
+    )
+  }
 }
 
 function pathEnvKey(env = process.env) {
@@ -208,6 +223,8 @@ function getBinaryVersion(binaryPath) {
 
 function main() {
   const options = parseArgs(process.argv.slice(2))
+  assertNativeBuildTarget(options)
+
   let idenaGoDir = findSourceDir(
     'IDENA_DESKTOP_IDENA_GO_DIR',
     'idena-go',
@@ -268,6 +285,7 @@ function main() {
     goCommand(),
     [
       'build',
+      '-trimpath',
       '-ldflags',
       `-X main.version=${PINNED_NODE_VERSION}`,
       '-o',

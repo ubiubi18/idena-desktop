@@ -1,4 +1,5 @@
-const {join, resolve} = require('path')
+const {fileURLToPath} = require('url')
+const {isAbsolute, join, relative, resolve} = require('path')
 const {
   BrowserWindow,
   app,
@@ -19,6 +20,7 @@ const {zoomIn, zoomOut, resetZoom} = require('./utils')
 const loadRoute = require('./utils/routes')
 const {getI18nConfig} = require('./language')
 const {searchImages} = require('./image-search')
+const {openExternalUrl} = require('./safe-external-url')
 
 const isWin = process.platform === 'win32'
 const isMac = process.platform === 'darwin'
@@ -80,6 +82,48 @@ const isFirstInstance = app.requestSingleInstanceLock()
 
 const extractDnaUrl = (argv) => argv.find((item) => item.startsWith('dna://'))
 
+function isAppNavigationUrl(url) {
+  try {
+    const parsedUrl = new URL(String(url || ''))
+
+    if (isDev) {
+      return parsedUrl.origin === loadRoute.DEV_SERVER_ORIGIN
+    }
+
+    if (parsedUrl.protocol !== 'file:') {
+      return false
+    }
+
+    const rendererOutPath = join(app.getAppPath(), 'renderer', 'out')
+    const targetPath = fileURLToPath(parsedUrl)
+    const relativeTarget = relative(rendererOutPath, targetPath)
+
+    return (
+      Boolean(relativeTarget) &&
+      !relativeTarget.startsWith('..') &&
+      !isAbsolute(relativeTarget)
+    )
+  } catch {
+    return false
+  }
+}
+
+function installNavigationGuards(window) {
+  window.webContents.setWindowOpenHandler(({url}) => {
+    openExternalUrl(shell, url, logger)
+    return {action: 'deny'}
+  })
+
+  window.webContents.on('will-navigate', (event, url) => {
+    if (isAppNavigationUrl(url)) {
+      return
+    }
+
+    event.preventDefault()
+    openExternalUrl(shell, url, logger)
+  })
+}
+
 ipcMain.on(APP_INFO_COMMAND, (event) => {
   event.returnValue = {
     version: appVersion,
@@ -121,6 +165,8 @@ const createMainWindow = () => {
     icon: resolve(__dirname, 'static', 'icon-128@2x.png'),
     show: false,
   })
+
+  installNavigationGuards(mainWindow)
 
   loadRoute(mainWindow, 'home')
 
@@ -271,13 +317,13 @@ const createMenu = () => {
       {
         label: i18next.t('Website'),
         click: () => {
-          shell.openExternal('https://idena.io/')
+          openExternalUrl(shell, 'https://idena.io/', logger)
         },
       },
       {
         label: i18next.t('Explorer'),
         click: () => {
-          shell.openExternal('https://scan.idena.io/')
+          openExternalUrl(shell, 'https://scan.idena.io/', logger)
         },
       },
       {
@@ -644,7 +690,7 @@ ipcMain.on(AUTO_UPDATE_COMMAND, async (event, command, data) => {
         didConfirmQuit = true
         autoUpdater.quitAndInstall()
       } else {
-        shell.openExternal('https://www.idena.io/download')
+        openExternalUrl(shell, 'https://www.idena.io/download', logger)
       }
       break
     }

@@ -4,6 +4,11 @@ const fs = require('fs')
 
 const failures = []
 const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+const buildNodeScript = fs.readFileSync(
+  'scripts/build-node-from-sources.js',
+  'utf8'
+)
+const releaseWorkflow = fs.readFileSync('.github/workflows/release.yml', 'utf8')
 
 function requireCondition(condition, message) {
   if (!condition) failures.push(message)
@@ -16,12 +21,41 @@ requireCondition(
 requireCondition(packageJson.productName === 'Idena', 'unexpected product name')
 requireCondition(
   packageJson.engines &&
-    packageJson.engines.node === '>=24.15.0 <25' &&
-    packageJson.engines.npm === '>=11.12.0',
+    packageJson.engines.node === '>=24.18.0 <25' &&
+    packageJson.engines.npm === '>=11.16.0',
   'package engines must pin the Node 24 / npm 11 runtime'
 )
 requireCondition(fs.existsSync('.node-version'), 'missing .node-version')
 requireCondition(fs.existsSync('.nvmrc'), 'missing .nvmrc')
+requireCondition(
+  /IDENA_GO_GOTOOLCHAIN\s*\|\|\s*['"]go1\.26\.4['"]/.test(buildNodeScript),
+  'bundled node source build must default to Go 1.26.4'
+)
+
+const scripts = packageJson.scripts || {}
+requireCondition(
+  scripts['prepare:node'] === 'node scripts/prepare-bundled-node.js',
+  'package scripts must include prepare:node for bundled idena-go'
+)
+requireCondition(
+  /build\/node\/current\/idena-go\.exe/u.test(
+    scripts['build:node:win:x64'] || ''
+  ),
+  'package scripts must define Windows bundled node output path'
+)
+requireCondition(
+  /build\/node\/current\/idena-go\b/u.test(
+    scripts['build:node:mac:arm64'] || ''
+  ) &&
+    /build\/node\/current\/idena-go\b/u.test(
+      scripts['build:node:mac:x64'] || ''
+    ),
+  'package scripts must define macOS bundled node output paths'
+)
+requireCondition(
+  /npm run prepare:node/u.test(releaseWorkflow),
+  'release workflow must prepare the bundled node before packaging'
+)
 
 const buildFiles = new Set(
   packageJson.build && Array.isArray(packageJson.build.files)

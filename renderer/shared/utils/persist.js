@@ -21,7 +21,10 @@ export function persistItem(dbName, key, value) {
   try {
     loadDb(dbName).set(key, value).write()
   } catch {
-    global.logger.error('error writing to file: ', dbName, key, value)
+    global.logger?.error?.(
+      'error writing persistent item:',
+      storageLogContext(dbName, key)
+    )
   }
 }
 
@@ -29,7 +32,17 @@ export function persistState(name, state) {
   try {
     loadDb(name).setState(state).write()
   } catch {
-    global.logger.error('error writing to file: ', name, state)
+    global.logger?.error?.(
+      'error writing persistent state:',
+      storageLogContext(name)
+    )
+  }
+}
+
+function storageLogContext(name, key) {
+  return {
+    name,
+    ...(typeof key === 'undefined' ? {} : {key}),
   }
 }
 

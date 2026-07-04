@@ -132,7 +132,10 @@ export async function updatePersistedItem(db, id, item) {
 export async function deletePersistedItem(db, id) {
   return db
     .batch()
-    .put('ids', await safeReadIds(db).filter((x) => x !== id))
+    .put(
+      'ids',
+      (await safeReadIds(db)).filter((x) => x !== id)
+    )
     .del(id)
     .write()
 }

@@ -95,5 +95,8 @@ datadir
 .DS_Store
 
 main/node/**
+build/node/current/
 
 .env.*
+
+.tmp/

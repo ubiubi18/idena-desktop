@@ -13,6 +13,9 @@ const invites = require('./stores/invites')
 const contacts = require('./stores/contacts')
 const logger = require('./logger')
 const {prepareDb, dbPath} = require('./stores/setup')
+const {openExternalUrl} = require('./safe-external-url')
+const {createSafeIpcRenderer} = require('./safe-ipc-renderer')
+const {createSafeImageBridge} = require('./safe-image-bridge')
 
 function getAppInfo() {
   try {
@@ -30,8 +33,11 @@ const isDev =
   process.defaultApp === true
 
 process.once('loaded', () => {
-  global.ipcRenderer = ipcRenderer
-  global.openExternal = shell.openExternal
+  const safeIpcRenderer = createSafeIpcRenderer(ipcRenderer)
+  const safeImageBridge = createSafeImageBridge({clipboard, nativeImage})
+
+  global.ipcRenderer = safeIpcRenderer
+  global.openExternal = (url) => openExternalUrl(shell, url, logger)
 
   global.flipStore = flips
   global.invitesDb = invites
@@ -45,8 +51,15 @@ process.once('loaded', () => {
   global.prepareDb = prepareDb
   global.isMac = process.platform === 'darwin'
 
-  global.clipboard = clipboard
-  global.nativeImage = nativeImage
+  global.clipboard = {
+    readText: safeImageBridge.readText,
+    readImageDataURL: safeImageBridge.readImageDataURL,
+    writeImageDataURL: safeImageBridge.writeImageDataURL,
+  }
+  global.image = {
+    resizeDataURL: safeImageBridge.resizeDataURL,
+    resizeDataURLExact: safeImageBridge.resizeDataURLExact,
+  }
   global.locale = locale
 
   global.getZoomLevel = () => webFrame.getZoomLevel()
@@ -63,7 +76,7 @@ process.once('loaded', () => {
   }
 
   global.toggleFullScreen = () => {
-    ipcRenderer.send(WINDOW_COMMAND, 'toggle-full-screen')
+    safeIpcRenderer.send(WINDOW_COMMAND, 'toggle-full-screen')
   }
 
   global.levelup = levelup

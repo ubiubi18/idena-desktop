@@ -1,7 +1,12 @@
 import {useRouter} from 'next/router'
 import * as React from 'react'
 import {areSameCaseInsensitive} from '../oracles/utils'
-import {dnaLinkMethod, extractQueryParams, isValidDnaUrl} from './utils'
+import {
+  dnaLinkMethod,
+  extractQueryParams,
+  isValidDnaUrl,
+  urlLogContext,
+} from './utils'
 
 export const DnaLinkMethod = {
   SignIn: 'signin',
@@ -56,7 +61,7 @@ export function useDnaLink({onInvalidLink}) {
 
   React.useEffect(() => {
     if (url && !isValidDnaUrl(url)) {
-      global.logger.error('Receieved invalid dna url', url)
+      global.logger.error('Receieved invalid dna url', urlLogContext(url))
       if (onInvalidLink) onInvalidLink(url)
     }
   }, [onInvalidLink, url])
