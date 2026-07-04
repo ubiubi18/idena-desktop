@@ -7,6 +7,14 @@ const {spawnSync} = require('child_process')
 const ROOT = path.join(__dirname, '..')
 const MANIFEST_FILE = path.join(__dirname, 'source-manifest.json')
 
+function readOptionValue(argv, index, option) {
+  const value = argv[index + 1]
+  if (!value || value.startsWith('--')) {
+    throw new Error(`${option} requires a value`)
+  }
+  return value
+}
+
 function parseArgs(argv) {
   const options = {
     check: false,
@@ -21,8 +29,8 @@ function parseArgs(argv) {
     } else if (arg === '--update') {
       options.update = true
     } else if (arg === '--target-root') {
+      options.targetRoot = path.resolve(readOptionValue(argv, index, arg))
       index += 1
-      options.targetRoot = path.resolve(argv[index])
     } else {
       throw new Error(`Unknown argument: ${arg}`)
     }
@@ -150,9 +158,16 @@ function main() {
   console.log('[setup-sources] Source setup complete.')
 }
 
-try {
-  main()
-} catch (error) {
-  console.error(`[setup-sources] ${error.message}`)
-  process.exit(1)
+if (require.main === module) {
+  try {
+    main()
+  } catch (error) {
+    console.error(`[setup-sources] ${error.message}`)
+    process.exit(1)
+  }
+}
+
+module.exports = {
+  parseArgs,
+  sourcePath,
 }

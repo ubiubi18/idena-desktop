@@ -9,6 +9,14 @@ const PINNED_NODE_VERSION = '1.1.2'
 const MIN_NODE_BINARY_SIZE = 1024 * 1024
 const DEFAULT_GO_TOOLCHAIN = process.env.IDENA_GO_GOTOOLCHAIN || 'go1.26.4'
 
+function readOptionValue(argv, index, option) {
+  const value = argv[index + 1]
+  if (!value || value.startsWith('--')) {
+    throw new Error(`${option} requires a value`)
+  }
+  return value
+}
+
 function parseArgs(argv) {
   const options = {
     output: '',
@@ -19,11 +27,11 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
     if (arg === '--platform') {
+      options.platform = readOptionValue(argv, index, arg)
       index += 1
-      options.platform = argv[index]
     } else if (arg === '--arch') {
+      options.arch = readOptionValue(argv, index, arg)
       index += 1
-      options.arch = argv[index]
     } else if (!options.output) {
       options.output = arg
     } else {
@@ -120,29 +128,25 @@ function goCommand() {
   return process.platform === 'win32' ? 'go.exe' : 'go'
 }
 
-function windowsMsysUcrtBinCandidates() {
-  if (process.platform !== 'win32') return []
+function windowsMsysUcrtBinCandidates(
+  env = process.env,
+  platform = process.platform
+) {
+  if (platform !== 'win32') return []
 
   const candidates = [
     'C:\\msys64\\ucrt64\\bin',
     'C:\\ProgramData\\chocolatey\\lib\\mingw\\tools\\install\\mingw64\\bin',
-    process.env.LOCALAPPDATA &&
-      path.join(
-        process.env.LOCALAPPDATA,
-        'Programs',
-        'msys64',
-        'ucrt64',
-        'bin'
-      ),
-    process.env.ProgramFiles &&
-      path.join(process.env.ProgramFiles, 'msys64', 'ucrt64', 'bin'),
-    process.env['ProgramFiles(x86)'] &&
-      path.join(process.env['ProgramFiles(x86)'], 'msys64', 'ucrt64', 'bin'),
+    env.LOCALAPPDATA &&
+      path.join(env.LOCALAPPDATA, 'Programs', 'msys64', 'ucrt64', 'bin'),
+    env.ProgramFiles && path.join(env.ProgramFiles, 'msys64', 'ucrt64', 'bin'),
+    env['ProgramFiles(x86)'] &&
+      path.join(env['ProgramFiles(x86)'], 'msys64', 'ucrt64', 'bin'),
   ].filter(Boolean)
 
   const wingetPackagesDir =
-    process.env.LOCALAPPDATA &&
-    path.join(process.env.LOCALAPPDATA, 'Microsoft', 'WinGet', 'Packages')
+    env.LOCALAPPDATA &&
+    path.join(env.LOCALAPPDATA, 'Microsoft', 'WinGet', 'Packages')
   try {
     if (wingetPackagesDir && fs.existsSync(wingetPackagesDir)) {
       fs.readdirSync(wingetPackagesDir, {withFileTypes: true})
@@ -164,16 +168,19 @@ function windowsMsysUcrtBinCandidates() {
   return candidates
 }
 
-function assertNativeBuildTarget(options) {
-  if (options.platform !== process.platform) {
+function assertNativeBuildTarget(
+  options,
+  runtime = {platform: process.platform, arch: process.arch}
+) {
+  if (options.platform !== runtime.platform) {
     throw new Error(
-      `cross-platform node builds are not supported by this script: requested ${options.platform}, running on ${process.platform}`
+      `cross-platform node builds are not supported by this script: requested ${options.platform}, running on ${runtime.platform}`
     )
   }
 
-  if (options.arch !== process.arch) {
+  if (options.arch !== runtime.arch) {
     throw new Error(
-      `cross-architecture node builds are not supported by this script: requested ${options.arch}, running on ${process.arch}`
+      `cross-architecture node builds are not supported by this script: requested ${options.arch}, running on ${runtime.arch}`
     )
   }
 }
@@ -321,9 +328,21 @@ function main() {
   console.log(`Done. Node binary written to: ${path.resolve(options.output)}`)
 }
 
-try {
-  main()
-} catch (error) {
-  console.error(`[build-node-from-sources] ${error.message}`)
-  process.exit(1)
+if (require.main === module) {
+  try {
+    main()
+  } catch (error) {
+    console.error(`[build-node-from-sources] ${error.message}`)
+    process.exit(1)
+  }
+}
+
+module.exports = {
+  bindingLibName,
+  normalizeArchForBinding,
+  parseArgs,
+  relativePath,
+  assertNativeBuildTarget,
+  windowsMsysUcrtBinCandidates,
+  pathEnvKey,
 }

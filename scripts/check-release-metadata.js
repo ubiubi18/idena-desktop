@@ -9,6 +9,8 @@ const buildNodeScript = fs.readFileSync(
   'utf8'
 )
 const releaseWorkflow = fs.readFileSync('.github/workflows/release.yml', 'utf8')
+const lintWorkflow = fs.readFileSync('.github/workflows/lint.yml', 'utf8')
+const releaseCheckScript = fs.readFileSync('scripts/release-check.js', 'utf8')
 
 function requireCondition(condition, message) {
   if (!condition) failures.push(message)
@@ -55,6 +57,38 @@ requireCondition(
 requireCondition(
   /npm run prepare:node/u.test(releaseWorkflow),
   'release workflow must prepare the bundled node before packaging'
+)
+requireCondition(
+  /workflow_dispatch:[\s\S]*inputs:[\s\S]*tag:/u.test(releaseWorkflow),
+  'release workflow must require a semver tag input for manual dispatch'
+)
+requireCondition(
+  /ref:\s*\$\{\{\s*github\.event_name == 'workflow_dispatch' && inputs\.tag \|\| github\.ref\s*\}\}/u.test(
+    releaseWorkflow
+  ),
+  'release workflow manual dispatch must check out the requested tag'
+)
+requireCondition(
+  /npm test -- --runInBand/u.test(lintWorkflow),
+  'push workflow must run the full unit test suite'
+)
+requireCondition(
+  /pull_request:/u.test(lintWorkflow),
+  'lint workflow must run on pull requests'
+)
+requireCondition(
+  /npm test -- --runInBand/u.test(releaseWorkflow),
+  'release workflow must run the full unit test suite before packaging'
+)
+requireCondition(
+  /npmCommand,\s*\[\s*'audit',\s*'--audit-level=moderate',?\s*\]/u.test(
+    releaseCheckScript
+  ),
+  'release check must include full moderate-severity npm audit'
+)
+requireCondition(
+  /npmCommand,\s*\['audit',\s*'signatures'\]/u.test(releaseCheckScript),
+  'release check must include npm registry signature audit'
 )
 
 const buildFiles = new Set(
