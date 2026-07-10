@@ -7,14 +7,13 @@
     "@xstate/react",
     "ansi-to-react",
     "axios",
+    "buffer",
     "canvas-confetti",
     "color-convert",
     "dayjs",
     "dequal",
     "dexie",
-    "electron-store",
     "electron-updater",
-    "express",
     "extract-colors",
     "framer-motion",
     "fs-extra",
@@ -28,7 +27,6 @@
     "multiformats",
     "nanoid",
     "pino",
-    "prettier",
     "progress-stream",
     "qrcode.react",
     "react",
@@ -46,6 +44,6 @@
     "url-regex-safe",
     "xstate"
   ],
-  "maxRootRuntimeDependencies": 46,
-  "maxProductionNodeModules": 513
+  "maxRootRuntimeDependencies": 43,
+  "maxProductionNodeModules": 340
 }

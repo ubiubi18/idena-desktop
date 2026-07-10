@@ -4,12 +4,12 @@ import {useMachine} from '@xstate/react'
 import {log} from 'xstate/lib/actions'
 import {eitherState, skipSSR} from '../../shared/utils/utils'
 import {useAutoUpdateState} from '../../shared/providers/update-context'
-import {requestDb} from '../../shared/utils/db'
+import {requestDb, subDb} from '../../shared/utils/db'
 import {isFork} from '../../shared/utils/node'
 import {apiUrl} from '../../shared/api/api-client'
 
 function createVotingStatusDb(version) {
-  const db = global.sub(requestDb(), 'updates')
+  const db = subDb(requestDb(), 'updates')
   const key = `hardForkVoting!!${version}`
 
   return {

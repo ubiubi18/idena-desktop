@@ -1,12 +1,83 @@
+import {Buffer} from 'buffer'
 import {nanoid} from 'nanoid'
-
-const {levelup, leveldown, dbPath, sub} = global
 
 let idenaDb = null
 
+function databaseBridge() {
+  if (!global.database) throw new Error('Database bridge is unavailable')
+  return global.database
+}
+
+async function unwrap(resultPromise) {
+  const result = await resultPromise
+  if (result?.ok) {
+    return result.value?.type === 'buffer' && result.value?.base64
+      ? Buffer.from(result.value.base64, 'base64')
+      : result.value
+  }
+
+  const error = new Error(result?.error?.message || 'Database operation failed')
+  error.code = result?.error?.code || undefined
+  error.notFound = Boolean(result?.error?.notFound)
+  throw error
+}
+
+class DatabaseHandle {
+  constructor(name, prefixes = []) {
+    this.descriptor = {name, prefixes}
+  }
+
+  get(key) {
+    return unwrap(databaseBridge().get(this.descriptor, key))
+  }
+
+  put(key, value) {
+    return unwrap(databaseBridge().put(this.descriptor, key, value))
+  }
+
+  del(key) {
+    return unwrap(databaseBridge().delete(this.descriptor, key))
+  }
+
+  clear() {
+    return unwrap(databaseBridge().clear(this.descriptor))
+  }
+
+  close() {
+    return unwrap(databaseBridge().close(this.descriptor))
+  }
+
+  isOpen() {
+    return databaseBridge().isOpen(this.descriptor)
+  }
+
+  batch() {
+    const operations = []
+    const batch = {
+      put: (key, value) => {
+        operations.push({type: 'put', key, value})
+        return batch
+      },
+      del: (key) => {
+        operations.push({type: 'del', key})
+        return batch
+      },
+      write: () => unwrap(databaseBridge().batch(this.descriptor, operations)),
+    }
+    return batch
+  }
+
+  sub(name, options = {}) {
+    return new DatabaseHandle(this.descriptor.name, [
+      ...this.descriptor.prefixes,
+      {name, options},
+    ])
+  }
+}
+
 export function requestDb(name = 'db') {
   if (idenaDb === null) {
-    idenaDb = levelup(leveldown(dbPath(name)))
+    idenaDb = new DatabaseHandle(name)
 
     if (typeof window !== 'undefined') {
       window.addEventListener('beforeunload', async () => {
@@ -15,6 +86,13 @@ export function requestDb(name = 'db') {
     }
   }
   return idenaDb
+}
+
+export function subDb(db, name, options = {}) {
+  if (!(db instanceof DatabaseHandle)) {
+    throw new Error('db should be a database bridge handle')
+  }
+  return db.sub(name, options)
 }
 
 export const epochDb = (db, epoch = -1, options = {}) => {
@@ -29,13 +107,13 @@ export const epochDb = (db, epoch = -1, options = {}) => {
 
   switch (typeof db) {
     case 'string':
-      targetDb = sub(sub(requestDb(), db), epochPrefix, nextOptions)
+      targetDb = subDb(subDb(requestDb(), db), epochPrefix, nextOptions)
       break
     case 'object':
-      targetDb = sub(db, epochPrefix, nextOptions)
+      targetDb = subDb(db, epochPrefix, nextOptions)
       break
     default:
-      throw new Error('db should be either string or Level instance')
+      throw new Error('db should be either string or database bridge handle')
   }
 
   return {
@@ -57,11 +135,8 @@ export const epochDb = (db, epoch = -1, options = {}) => {
     },
     async batchPut(items) {
       const ids = await safeReadIds(targetDb)
-
       const newItems = items.filter(({id}) => !ids.includes(normalizeId(id)))
-
       const newIds = []
-
       let batch = targetDb.batch()
 
       for (const {id = nanoid(), ...item} of newItems) {

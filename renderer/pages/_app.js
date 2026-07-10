@@ -17,27 +17,34 @@ import {OnboardingProvider} from '../shared/providers/onboarding-context'
 import {queryClient} from '../shared/utils/utils'
 
 export default function App({Component, ...pageProps}) {
+  const [isMounted, setIsMounted] = React.useState(false)
+
+  React.useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  React.useEffect(() => {
+    if (!isMounted) return undefined
+
+    document.documentElement.dataset.idenaRendererReady = 'true'
+    return () => {
+      delete document.documentElement.dataset.idenaRendererReady
+    }
+  }, [isMounted])
+
   return (
     <>
       <Head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin=""
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
         <link href="/static/scrollbars.css" rel="stylesheet" />
       </Head>
 
-      <ChakraProvider theme={extendTheme(theme)}>
-        <AppProviders>
-          <Component {...pageProps} />
-        </AppProviders>
-      </ChakraProvider>
+      {isMounted ? (
+        <ChakraProvider theme={extendTheme(theme)}>
+          <AppProviders>
+            <Component {...pageProps} />
+          </AppProviders>
+        </ChakraProvider>
+      ) : null}
     </>
   )
 }

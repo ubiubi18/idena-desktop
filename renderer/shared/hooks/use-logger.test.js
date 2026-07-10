@@ -19,6 +19,8 @@ describe('logger redaction', () => {
         internalApiKey: SECRET_API_VALUE,
         nested: {
           token: SECRET_TOKEN_VALUE,
+          privateHex: SECRET_DATA_VALUE,
+          images: [SECRET_DATA_VALUE],
         },
       },
       safe: 'visible',
@@ -29,6 +31,7 @@ describe('logger redaction', () => {
     expect(redacted.safe).toBe('visible')
     expect(logged).not.toContain(SECRET_API_VALUE)
     expect(logged).not.toContain(SECRET_TOKEN_VALUE)
+    expect(logged).not.toContain(SECRET_DATA_VALUE)
     expect(logged).toContain('[redacted]')
   })
 

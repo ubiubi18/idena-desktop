@@ -1,30 +1,33 @@
-const Store = require('electron-store')
+const {prepareDb} = require('./setup')
 
-const store = new Store({
-  name: 'flips',
-})
+const store = prepareDb('flips')
 
 const keyName = 'flips'
+store.defaults({[keyName]: []}).write()
+
+function readFlips() {
+  return store.get(keyName).value() || []
+}
 
 function getFlips() {
-  return store.get(keyName, [])
+  return readFlips()
 }
 
 function getFlip(id) {
-  return store.get(keyName, []).find((draft) => draft.id === id)
+  return readFlips().find((draft) => draft.id === id)
 }
 
 function saveFlips(flips) {
-  store.set(keyName, flips)
+  store.set(keyName, flips).write()
 }
 
 function addDraft(draft) {
-  const drafts = store.get(keyName, [])
-  store.set(keyName, drafts.concat(draft))
+  const drafts = readFlips()
+  store.set(keyName, drafts.concat(draft)).write()
 }
 
 function updateDraft(draft) {
-  const drafts = store.get(keyName, [])
+  const drafts = readFlips()
   const draftIdx = drafts.findIndex(({id}) => id === draft.id)
   if (draftIdx > -1) {
     const nextDrafts = [
@@ -32,29 +35,30 @@ function updateDraft(draft) {
       {...drafts[draftIdx], ...draft},
       ...drafts.slice(draftIdx + 1),
     ]
-    store.set(keyName, nextDrafts)
+    store.set(keyName, nextDrafts).write()
     return nextDrafts
   }
   return drafts
 }
 
 function deleteDraft(id) {
-  const drafts = store.get(keyName, [])
-  store.set(
-    keyName,
-    drafts.map((flip) =>
-      flip.id === id ? flip : {...flip, type: 'Removed', images: null}
+  const drafts = readFlips()
+  store
+    .set(
+      keyName,
+      drafts.map((flip) =>
+        flip.id === id ? {...flip, type: 'Removed', images: null} : flip
+      )
     )
-  )
+    .write()
   return id
 }
 
 function clear() {
-  store.clear()
+  store.set(keyName, []).write()
 }
 
 module.exports = {
-  store,
   getFlips,
   getFlip,
   saveFlips,

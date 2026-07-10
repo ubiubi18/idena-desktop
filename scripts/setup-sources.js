@@ -113,14 +113,30 @@ function verifyGitCheckout(source, dir) {
 
 function cloneSource(source, dir) {
   fs.mkdirSync(path.dirname(dir), {recursive: true})
-  run('git', ['clone', '--depth', '1', '--branch', source.ref, source.url, dir])
+  fs.mkdirSync(dir)
+  run('git', ['init'], {cwd: dir})
+  run('git', ['remote', 'add', 'origin', source.url], {cwd: dir})
+  fetchSource(source, dir)
+  run('git', ['checkout', '--detach', 'FETCH_HEAD'], {cwd: dir})
   verifyGitCheckout(source, dir)
 }
 
 function updateGitSource(source, dir) {
-  run('git', ['fetch', '--depth', '1', 'origin', source.ref], {cwd: dir})
-  run('git', ['checkout', 'FETCH_HEAD'], {cwd: dir})
+  fetchSource(source, dir)
+  run('git', ['checkout', '--detach', 'FETCH_HEAD'], {cwd: dir})
   verifyGitCheckout(source, dir)
+}
+
+function sourceFetchRef(source) {
+  return source.commit || source.ref
+}
+
+function fetchSource(source, dir) {
+  const revision = sourceFetchRef(source)
+  if (!revision) {
+    throw new Error(`${source.name}: source commit or ref is required`)
+  }
+  run('git', ['fetch', '--depth', '1', 'origin', revision], {cwd: dir})
 }
 
 function ensureSource(source, options) {
@@ -169,5 +185,6 @@ if (require.main === module) {
 
 module.exports = {
   parseArgs,
+  sourceFetchRef,
   sourcePath,
 }

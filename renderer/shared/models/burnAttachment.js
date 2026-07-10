@@ -1,3 +1,4 @@
+import {Buffer} from 'buffer'
 import root from './proto/models_pb'
 import {stripHexPrefix} from '../utils/buffers'
 

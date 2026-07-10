@@ -1,3 +1,4 @@
+import {Buffer} from 'buffer'
 import dayjs from 'dayjs'
 import {assign} from 'xstate'
 import urlRegex from 'url-regex-safe'

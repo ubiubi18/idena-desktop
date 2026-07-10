@@ -96,6 +96,8 @@ datadir
 
 main/node/**
 build/node/current/
+idena-go/
+idena-wasm-binding/
 
 .env.*
 

@@ -1,5 +1,4 @@
-const {fileURLToPath} = require('url')
-const {isAbsolute, join, relative, resolve} = require('path')
+const {join, resolve} = require('path')
 const {
   BrowserWindow,
   app,
@@ -7,6 +6,8 @@ const {
   Tray,
   Menu,
   nativeTheme,
+  net,
+  protocol,
   shell,
   // eslint-disable-next-line import/no-extraneous-dependencies
 } = require('electron')
@@ -21,11 +22,21 @@ const loadRoute = require('./utils/routes')
 const {getI18nConfig} = require('./language')
 const {searchImages} = require('./image-search')
 const {openExternalUrl} = require('./safe-external-url')
+const {isTrustedIpcSender} = require('./ipc-sender')
+const {
+  installRendererProtocol,
+  registerRendererScheme,
+} = require('./renderer-protocol')
+const {applyPrivateFileCreationMask} = require('./private-files')
+
+applyPrivateFileCreationMask()
+registerRendererScheme(protocol)
 
 const isWin = process.platform === 'win32'
 const isMac = process.platform === 'darwin'
 const isLinux = process.platform === 'linux'
-const isDev = !app.isPackaged
+const isE2ESmoke = process.env.IDENA_E2E_SMOKE === '1'
+const isDev = !app.isPackaged && !isE2ESmoke
 
 app.allowRendererProcessReuse = true
 
@@ -52,6 +63,8 @@ const {
   APP_INFO_COMMAND,
   APP_PATH_COMMAND,
   WINDOW_COMMAND,
+  LOGGER_COMMAND,
+  E2E_SMOKE_EVENT,
 } = require('./channels')
 const {
   startNode,
@@ -73,8 +86,23 @@ let mainWindow
 let node
 let nodeDownloadPromise = null
 let tray
+let e2eSmokeFinished = false
 
 const nodeUpdater = new NodeUpdater(logger)
+
+function finishE2ESmoke(ok, detail) {
+  if (!isE2ESmoke || e2eSmokeFinished) return
+  e2eSmokeFinished = true
+
+  const message = String(detail || (ok ? 'renderer ready' : 'unknown failure'))
+  if (ok) {
+    console.log(`[e2e-smoke] ready: ${message}`)
+  } else {
+    console.error(`[e2e-smoke] failed: ${message}`)
+  }
+
+  setTimeout(() => app.exit(ok ? 0 : 1), 100)
+}
 
 let dnaUrl
 
@@ -90,19 +118,7 @@ function isAppNavigationUrl(url) {
       return parsedUrl.origin === loadRoute.DEV_SERVER_ORIGIN
     }
 
-    if (parsedUrl.protocol !== 'file:') {
-      return false
-    }
-
-    const rendererOutPath = join(app.getAppPath(), 'renderer', 'out')
-    const targetPath = fileURLToPath(parsedUrl)
-    const relativeTarget = relative(rendererOutPath, targetPath)
-
-    return (
-      Boolean(relativeTarget) &&
-      !relativeTarget.startsWith('..') &&
-      !isAbsolute(relativeTarget)
-    )
+    return loadRoute.isPackagedRendererUrl(parsedUrl)
   } catch {
     return false
   }
@@ -124,7 +140,23 @@ function installNavigationGuards(window) {
   })
 }
 
+function acceptIpcSender(event) {
+  const trusted = isTrustedIpcSender(event, mainWindow, isAppNavigationUrl)
+  if (!trusted) logger.warn('blocked IPC from an untrusted sender')
+  return trusted
+}
+
+function requireIpcSender(event) {
+  if (!acceptIpcSender(event)) {
+    throw new Error('Blocked IPC from an untrusted sender')
+  }
+}
+
 ipcMain.on(APP_INFO_COMMAND, (event) => {
+  if (!acceptIpcSender(event)) {
+    event.returnValue = null
+    return
+  }
   event.returnValue = {
     version: appVersion,
     locale: app.getLocale(),
@@ -132,8 +164,31 @@ ipcMain.on(APP_INFO_COMMAND, (event) => {
 })
 
 ipcMain.on(APP_PATH_COMMAND, (event, folder) => {
+  if (!acceptIpcSender(event) || folder !== 'userData') {
+    event.returnValue = null
+    return
+  }
   event.returnValue = app.getPath(folder)
 })
+
+const rendererLogLevels = new Set(['debug', 'info', 'warn', 'error'])
+ipcMain.on(LOGGER_COMMAND, (event, level, message) => {
+  if (!acceptIpcSender(event)) return
+  if (
+    rendererLogLevels.has(level) &&
+    typeof message === 'string' &&
+    message.length <= 16 * 1024
+  ) {
+    logger[level]({source: 'renderer'}, message)
+  }
+})
+
+if (isE2ESmoke) {
+  ipcMain.once(E2E_SMOKE_EVENT, (event, status, detail) => {
+    if (!acceptIpcSender(event)) return
+    finishE2ESmoke(status === 'ready', detail || status)
+  })
+}
 
 if (isFirstInstance) {
   app.on('second-instance', (e, argv) => {
@@ -157,7 +212,7 @@ const createMainWindow = () => {
     height: 740,
     webPreferences: {
       nodeIntegration: false,
-      contextIsolation: false,
+      contextIsolation: true,
       sandbox: false,
       webSecurity: true,
       preload: join(__dirname, 'preload.js'),
@@ -167,6 +222,23 @@ const createMainWindow = () => {
   })
 
   installNavigationGuards(mainWindow)
+
+  if (isE2ESmoke) {
+    mainWindow.webContents.once('preload-error', (_event, preloadPath, error) =>
+      finishE2ESmoke(false, `preload error: ${preloadPath}: ${error.message}`)
+    )
+    mainWindow.webContents.once(
+      'did-fail-load',
+      (_event, errorCode, errorDescription) =>
+        finishE2ESmoke(
+          false,
+          `renderer load failed (${errorCode}): ${errorDescription}`
+        )
+    )
+    mainWindow.webContents.once('render-process-gone', (_event, details) =>
+      finishE2ESmoke(false, `renderer exited: ${details.reason}`)
+    )
+  }
 
   loadRoute(mainWindow, 'home')
 
@@ -380,6 +452,20 @@ const createTray = () => {
 
 // Prepare the renderer once the app is ready
 app.on('ready', () => {
+  if (!isDev) {
+    try {
+      installRendererProtocol({
+        appPath: app.getAppPath(),
+        net,
+        protocol,
+      })
+    } catch (error) {
+      logger.error('cannot install packaged renderer protocol', error)
+      app.quit()
+      return
+    }
+  }
+
   const i18nConfig = getI18nConfig()
 
   i18next.init(i18nConfig, (err) => {
@@ -399,7 +485,8 @@ app.on('ready', () => {
   })
 })
 
-ipcMain.on(WINDOW_COMMAND, (_event, command) => {
+ipcMain.on(WINDOW_COMMAND, (event, command) => {
+  if (!acceptIpcSender(event)) return
   switch (command) {
     case 'toggle-full-screen': {
       if (!mainWindow) return
@@ -443,7 +530,8 @@ app.on('before-quit', (e) => {
   }
 })
 
-ipcMain.on('confirm-quit', () => {
+ipcMain.on('confirm-quit', (event) => {
+  if (!acceptIpcSender(event)) return
   didConfirmQuit = true
   app.quit()
 })
@@ -456,9 +544,13 @@ app.on('window-all-closed', () => {
   }
 })
 
-ipcMain.handleOnce('CHECK_DNA_LINK', () => dnaUrl)
+ipcMain.handleOnce('CHECK_DNA_LINK', (event) => {
+  requireIpcSender(event)
+  return dnaUrl
+})
 
-ipcMain.on(NODE_COMMAND, async (_event, command, data) => {
+ipcMain.on(NODE_COMMAND, async (event, command, data) => {
+  if (!acceptIpcSender(event)) return
   logger.info(`new node command`, command, data)
   switch (command) {
     case 'init-local-node': {
@@ -679,6 +771,7 @@ autoUpdater.on('update-downloaded', (info) => {
 })
 
 ipcMain.on(AUTO_UPDATE_COMMAND, async (event, command, data) => {
+  if (!acceptIpcSender(event)) return
   logger.info(`new autoupdate command`, command, data)
   switch (command) {
     case 'start-checking': {
@@ -714,7 +807,7 @@ ipcMain.on(AUTO_UPDATE_COMMAND, async (event, command, data) => {
 })
 
 const RELEASE_URL =
-  'https://api.github.com/repos/idena-network/idena-desktop/releases/latest'
+  'https://api.github.com/repos/ubiubi18/idena-desktop/releases/latest'
 
 function checkForUpdates() {
   if (isDev) {
@@ -747,16 +840,13 @@ function checkForUpdates() {
   runCheck()
 }
 
-// listen specific `node` messages
-ipcMain.on('node-log', ({sender}, message) => {
-  sender.send('node-log', message)
-})
-
-ipcMain.on('reload', () => {
+ipcMain.on('reload', (event) => {
+  if (!acceptIpcSender(event)) return
   loadRoute(mainWindow, 'home')
 })
 
-ipcMain.on('showMainWindow', () => {
+ipcMain.on('showMainWindow', (event) => {
+  if (!acceptIpcSender(event)) return
   showMainWindow()
 })
 
@@ -771,11 +861,19 @@ function sendMainWindowMsg(channel, message, data) {
   }
 }
 
-ipcMain.handle('search-image', async (_, query) =>
-  searchImages(query, {logger})
-)
+ipcMain.handle('search-image', async (event, query) => {
+  requireIpcSender(event)
+  return searchImages(query, {logger})
+})
 
-const KEY_VALUE = {}
+const KEY_VALUE = Object.create(null)
+const MEMORY_KEYS = new Set(['idena-bot'])
 
-ipcMain.handle('get-data', async (_, key) => KEY_VALUE[key])
-ipcMain.on('set-data', (_, key, value) => (KEY_VALUE[key] = value))
+ipcMain.handle('get-data', async (event, key) => {
+  requireIpcSender(event)
+  return MEMORY_KEYS.has(key) ? KEY_VALUE[key] : undefined
+})
+ipcMain.on('set-data', (event, key, value) => {
+  if (!acceptIpcSender(event) || !MEMORY_KEYS.has(key)) return
+  KEY_VALUE[key] = Boolean(value)
+})

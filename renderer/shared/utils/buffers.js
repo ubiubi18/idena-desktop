@@ -1,3 +1,5 @@
+import {Buffer} from 'buffer'
+
 function isHexPrefixed(str) {
   return str.slice(0, 2) === '0x'
 }

@@ -135,6 +135,12 @@ function checkPackagedFileRisk(packageJsonInput) {
   const requiredExcludes = [
     '!**/.env',
     '!**/.env.*',
+    '!**/*.test.js',
+    '!**/*.test.jsx',
+    '!.github',
+    '!.github/**',
+    '!scripts',
+    '!scripts/**',
     '!vendor',
     '!vendor/**',
     '!renderer',

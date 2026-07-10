@@ -6,10 +6,6 @@ import Layout from '../shared/components/layout'
 import {PrimaryButton} from '../shared/components/button'
 import {Page} from '../shared/components/components'
 
-global.logger = global.logger || {
-  error() {},
-}
-
 // eslint-disable-next-line react/prop-types
 function MyError({statusCode}) {
   const {t} = useTranslation()

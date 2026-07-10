@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 
 const fs = require('fs')
+const crypto = require('crypto')
+const os = require('os')
 const path = require('path')
 const {spawnSync} = require('child_process')
 
 const ROOT = path.join(__dirname, '..')
 const PINNED_NODE_VERSION = '1.1.2'
 const MIN_NODE_BINARY_SIZE = 1024 * 1024
-const DEFAULT_GO_TOOLCHAIN = process.env.IDENA_GO_GOTOOLCHAIN || 'go1.26.4'
+const DEFAULT_GO_TOOLCHAIN = process.env.IDENA_GO_GOTOOLCHAIN || 'go1.26.5'
 
 function readOptionValue(argv, index, option) {
   const value = argv[index + 1]
@@ -122,6 +124,31 @@ function bindingLibName(platform, arch) {
     return `libidena_wasm_windows_${bindingArch}.a`
   }
   return ''
+}
+
+function verifyBindingArtifact(bindingDir, libName) {
+  const archivePath = path.join(bindingDir, 'lib', libName)
+  const manifestPath = path.join(bindingDir, 'lib', 'SHA256SUMS')
+  if (!fs.existsSync(archivePath) || !fs.existsSync(manifestPath)) {
+    throw new Error(`verified wasm binding artifact is missing: ${libName}`)
+  }
+
+  const checksums = fs
+    .readFileSync(manifestPath, 'utf8')
+    .split(/\r?\n/u)
+    .map((line) => line.trim().split(/\s+/u))
+  const manifestEntry = checksums.find(([, name]) => name === libName)
+  if (!manifestEntry || !/^[0-9a-f]{64}$/u.test(manifestEntry[0])) {
+    throw new Error(`wasm binding checksum is missing: ${libName}`)
+  }
+
+  const actualChecksum = crypto
+    .createHash('sha256')
+    .update(fs.readFileSync(archivePath))
+    .digest('hex')
+  if (actualChecksum !== manifestEntry[0]) {
+    throw new Error(`wasm binding checksum mismatch: ${libName}`)
+  }
 }
 
 function goCommand() {
@@ -265,45 +292,57 @@ function main() {
   }
 
   const libName = bindingLibName(options.platform, options.arch)
-  if (!libName || !fs.existsSync(path.join(wasmBindingDir, 'lib', libName))) {
+  if (!libName) {
     throw new Error(
       `missing idena-wasm-binding static library for ${options.platform}/${options.arch}: ${libName}`
     )
   }
+  verifyBindingArtifact(wasmBindingDir, libName)
 
   fs.mkdirSync(path.dirname(options.output), {recursive: true})
 
-  const localWasmBinding = relativePath(idenaGoDir, wasmBindingDir)
-  run(
-    goCommand(),
-    [
-      'mod',
-      'edit',
-      `-replace=github.com/idena-network/idena-wasm-binding=${localWasmBinding}`,
-    ],
-    {
-      cwd: idenaGoDir,
-    }
+  const localWasmBinding = path.resolve(wasmBindingDir)
+  const modDir = fs.mkdtempSync(path.join(os.tmpdir(), 'idena-desktop-mod-'))
+  const modFile = path.join(modDir, 'idena.mod')
+  fs.copyFileSync(path.join(idenaGoDir, 'go.mod'), modFile)
+  fs.copyFileSync(
+    path.join(idenaGoDir, 'go.sum'),
+    path.join(modDir, 'idena.sum')
   )
 
-  const env = buildEnv()
+  try {
+    run(
+      goCommand(),
+      [
+        'mod',
+        'edit',
+        `-modfile=${modFile}`,
+        `-replace=github.com/idena-network/idena-wasm-binding=${localWasmBinding}`,
+      ],
+      {cwd: idenaGoDir}
+    )
 
-  run(
-    goCommand(),
-    [
-      'build',
-      '-trimpath',
-      '-ldflags',
-      `-X main.version=${PINNED_NODE_VERSION}`,
-      '-o',
-      path.resolve(options.output),
-      '.',
-    ],
-    {
-      cwd: idenaGoDir,
-      env,
-    }
-  )
+    run(
+      goCommand(),
+      [
+        'build',
+        `-modfile=${modFile}`,
+        '-mod=readonly',
+        '-trimpath',
+        '-ldflags',
+        `-s -w -X main.version=${PINNED_NODE_VERSION}`,
+        '-o',
+        path.resolve(options.output),
+        '.',
+      ],
+      {
+        cwd: idenaGoDir,
+        env: buildEnv(),
+      }
+    )
+  } finally {
+    fs.rmSync(modDir, {recursive: true, force: true})
+  }
 
   const stats = fs.statSync(options.output)
   if (!stats || stats.size < MIN_NODE_BINARY_SIZE) {
@@ -345,4 +384,5 @@ module.exports = {
   assertNativeBuildTarget,
   windowsMsysUcrtBinCandidates,
   pathEnvKey,
+  verifyBindingArtifact,
 }

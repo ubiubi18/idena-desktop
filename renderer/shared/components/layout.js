@@ -87,8 +87,6 @@ import {useIdentityState} from '../providers/identity-context'
 import {OfflineBanner} from './layout/offline'
 import {TroubleshootingScreen} from '../../screens/troubleshooting'
 
-global.getZoomLevel = global.getZoomLevel || {}
-
 const AVAILABLE_TIMEOUT = global.isDev || global.isTest ? 0 : 1000 * 5
 
 const sendConfirmQuit = () => global.ipcRenderer.send('confirm-quit')
@@ -854,7 +852,7 @@ function HardForkScreen({
               <SecondaryButton
                 onClick={() => {
                   global.openExternal(
-                    `https://github.com/idena-network/idena-go/releases/tag/v${semver.minVersion(
+                    `https://github.com/ubiubi18/idena-go/releases/tag/v${semver.minVersion(
                       `<=${version} >=${`${semver.major(
                         version
                       )}.${semver.minor(version)}.0`}`,

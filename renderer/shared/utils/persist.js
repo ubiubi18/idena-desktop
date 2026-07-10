@@ -1,8 +1,8 @@
-const loadDb = global.prepareDb || {}
+const persistentState = global.persistentState || {}
 
 export function loadPersistentState(dbName) {
   try {
-    const value = loadDb(dbName).getState()
+    const value = persistentState.getState(dbName)
     return Object.keys(value).length === 0 ? null : value || null
   } catch (error) {
     return null
@@ -19,7 +19,7 @@ export function loadPersistentStateValue(dbName, key) {
 
 export function persistItem(dbName, key, value) {
   try {
-    loadDb(dbName).set(key, value).write()
+    persistentState.set(dbName, key, value)
   } catch {
     global.logger?.error?.(
       'error writing persistent item:',
@@ -30,7 +30,7 @@ export function persistItem(dbName, key, value) {
 
 export function persistState(name, state) {
   try {
-    loadDb(name).setState(state).write()
+    persistentState.setState(name, state)
   } catch {
     global.logger?.error?.(
       'error writing persistent state:',

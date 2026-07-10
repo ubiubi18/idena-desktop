@@ -9,10 +9,22 @@ const SENSITIVE_KEY_PARTS = [
   'privatekey',
   'encodedprivatekey',
   'encryptedprivatekey',
+  'authorization',
+  'cookie',
+  'credential',
+  'mnemonic',
+  'passphrase',
   'password',
+  'hex',
+  'images',
+  'pics',
   'secret',
+  'seed',
+  'session',
   'signature',
   'token',
+  'url',
+  'urls',
 ]
 
 function isSensitiveLogKey(key) {
@@ -91,11 +103,6 @@ export default function useLogger([state, dispatch]) {
       const plainAction =
         typeof action === 'string' ? action : redactLogAction(action)
       const plainState = redactLogValue(state)
-
-      console.group('DISPATCH')
-      console.log('Action:', plainAction)
-      console.log('State:', plainState)
-      console.groupEnd()
 
       logger.debug('--- START DISPATCH ---')
       logger.debug('Action', plainAction)

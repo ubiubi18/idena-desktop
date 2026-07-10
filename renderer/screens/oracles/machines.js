@@ -26,7 +26,7 @@ import {
 } from './utils'
 import {VotingStatus} from '../../shared/types'
 import {callRpc, HASH_IN_MEMPOOL, isAddress} from '../../shared/utils/utils'
-import {epochDb, requestDb} from '../../shared/utils/db'
+import {epochDb, requestDb, subDb} from '../../shared/utils/db'
 import {ContractRpcMode, VotingListFilter} from './types'
 import {fetchNetworkSize} from '../../shared/api/dna'
 
@@ -215,9 +215,11 @@ export const votingListMachine = createMachine(
         showAll: (_, {value}) => value !== 'owned',
       }),
       persistFilter: ({filter, statuses, showAll}) => {
-        global
-          .sub(requestDb(), 'votings', {valueEncoding: 'json'})
-          .put('filter', {filter, statuses, showAll})
+        subDb(requestDb(), 'votings', {valueEncoding: 'json'}).put('filter', {
+          filter,
+          statuses,
+          showAll,
+        })
       },
       setError: assign({
         errorMessage: (_, {data}) => data?.message,
@@ -245,7 +247,7 @@ export const votingListMachine = createMachine(
 
         await db.batchPut(knownVotings)
 
-        const votingDb = global.sub(requestDb(), 'votings')
+        const votingDb = subDb(requestDb(), 'votings')
 
         const prevLastVotingTimestamp = await (async () => {
           try {
@@ -283,9 +285,7 @@ export const votingListMachine = createMachine(
       },
       preload: async () => {
         try {
-          return JSON.parse(
-            await global.sub(requestDb(), 'votings').get('filter')
-          )
+          return JSON.parse(await subDb(requestDb(), 'votings').get('filter'))
         } catch (error) {
           if (!error.notFound) throw new Error(error)
         }

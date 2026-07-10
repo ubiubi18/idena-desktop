@@ -1,3 +1,6 @@
+const crypto = require('crypto')
+const fs = require('fs')
+const os = require('os')
 const path = require('path')
 const {
   assertNativeBuildTarget,
@@ -5,6 +8,7 @@ const {
   parseArgs,
   pathEnvKey,
   relativePath,
+  verifyBindingArtifact,
   windowsMsysUcrtBinCandidates,
 } = require('./build-node-from-sources')
 
@@ -104,5 +108,29 @@ describe('build node from sources script', () => {
   it('detects the canonical PATH key case-insensitively', () => {
     expect(pathEnvKey({Path: 'x'})).toBe('Path')
     expect(pathEnvKey({})).toBe('PATH')
+  })
+
+  it('verifies binding artifacts against the checked-in manifest', () => {
+    const bindingDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'idena-binding-test-')
+    )
+    const libDir = path.join(bindingDir, 'lib')
+    const libName = 'libidena_wasm_darwin_arm64.a'
+    const archive = Buffer.from('verified archive')
+    const checksum = crypto.createHash('sha256').update(archive).digest('hex')
+    fs.mkdirSync(libDir)
+    fs.writeFileSync(path.join(libDir, libName), archive)
+    fs.writeFileSync(
+      path.join(libDir, 'SHA256SUMS'),
+      `${checksum}  ${libName}\n`
+    )
+
+    expect(() => verifyBindingArtifact(bindingDir, libName)).not.toThrow()
+
+    fs.writeFileSync(path.join(libDir, libName), 'tampered')
+    expect(() => verifyBindingArtifact(bindingDir, libName)).toThrow(
+      'checksum mismatch'
+    )
+    fs.rmSync(bindingDir, {recursive: true, force: true})
   })
 })

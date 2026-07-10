@@ -57,6 +57,11 @@ const blockedPatterns = [
     name: 'raw nativeImage preload exposure',
     regex: /\bglobal\s*\.\s*nativeImage\s*=\s*nativeImage\b/g,
   },
+  {
+    name: 'privileged Node preload exposure',
+    regex:
+      /\b(?:global\s*\.\s*|expose\s*\(\s*['"])(?:Buffer|dbPath|leveldown|levelup|prepareDb|sub)\b/g,
+  },
 ]
 
 function listTrackedFiles() {
@@ -118,6 +123,15 @@ if (!/\bnodeIntegration\s*:\s*false\b/.test(mainIndex)) {
   })
 }
 
+if (!/\bcontextIsolation\s*:\s*true\b/.test(mainIndex)) {
+  findings.push({
+    filePath: 'main/index.js',
+    line: 1,
+    name: 'main window context isolation guard',
+    value: 'contextIsolation: true missing',
+  })
+}
+
 if (!/\bsetWindowOpenHandler\s*\(/.test(mainIndex)) {
   findings.push({
     filePath: 'main/index.js',
@@ -136,11 +150,52 @@ if (!/\bwill-navigate\b/.test(mainIndex)) {
   })
 }
 
+if (
+  !/\bisTrustedIpcSender\s*\(/.test(mainIndex) ||
+  !/\brequireIpcSender\s*\(/.test(mainIndex)
+) {
+  findings.push({
+    filePath: 'main/index.js',
+    line: 1,
+    name: 'IPC sender validation',
+    value: 'trusted sender/origin guard missing',
+  })
+}
+
+if (
+  !/\bregisterRendererScheme\s*\(\s*protocol\s*\)/.test(mainIndex) ||
+  !/\binstallRendererProtocol\s*\(\s*\{/.test(mainIndex)
+) {
+  findings.push({
+    filePath: 'main/index.js',
+    line: 1,
+    name: 'secure packaged renderer protocol',
+    value: 'renderer protocol registration or installation missing',
+  })
+}
+
+const rendererProtocol = fs.existsSync('main/renderer-protocol.js')
+  ? fs.readFileSync('main/renderer-protocol.js', 'utf8')
+  : ''
+if (
+  !/\bstandard\s*:\s*true\b/.test(rendererProtocol) ||
+  !/\bsecure\s*:\s*true\b/.test(rendererProtocol) ||
+  !/\bpath\s*\.\s*relative\s*\(/.test(rendererProtocol) ||
+  !/\bpath\s*\.\s*isAbsolute\s*\(/.test(rendererProtocol)
+) {
+  findings.push({
+    filePath: 'main/renderer-protocol.js',
+    line: 1,
+    name: 'packaged renderer origin confinement',
+    value: 'secure scheme or path-confinement guard missing',
+  })
+}
+
 const preload = fs.existsSync('main/preload.js')
   ? fs.readFileSync('main/preload.js', 'utf8')
   : ''
 if (
-  !/\bglobal\s*\.\s*openExternal\s*=\s*\(url\)\s*=>\s*openExternalUrl\s*\(/.test(
+  !/\bexpose\s*\(\s*['"]openExternal['"]\s*,[\s\S]*?openExternalUrl\s*\(/.test(
     preload
   )
 ) {
@@ -153,7 +208,7 @@ if (
 }
 
 if (
-  !/\bconst\s+safeIpcRenderer\s*=\s*createSafeIpcRenderer\s*\(\s*ipcRenderer\s*\)[\s\S]*?\bglobal\s*\.\s*ipcRenderer\s*=\s*safeIpcRenderer\b/.test(
+  !/\bconst\s+safeIpcRenderer\s*=\s*createSafeIpcRenderer\s*\(\s*ipcRenderer\s*\)[\s\S]*?\bexpose\s*\(\s*['"]ipcRenderer['"]\s*,\s*safeIpcRenderer\s*\)/.test(
     preload
   )
 ) {
@@ -166,7 +221,7 @@ if (
 }
 
 if (
-  !/\bconst\s+safeImageBridge\s*=\s*createSafeImageBridge\s*\(\s*\{\s*clipboard\s*,\s*nativeImage\s*\}\s*\)[\s\S]*?\bglobal\s*\.\s*clipboard\s*=\s*\{[\s\S]*?\breadImageDataURL\s*:\s*safeImageBridge\s*\.\s*readImageDataURL[\s\S]*?\bglobal\s*\.\s*image\s*=\s*\{[\s\S]*?\bresizeDataURL\s*:\s*safeImageBridge\s*\.\s*resizeDataURL/.test(
+  !/\bconst\s+safeImageBridge\s*=\s*createSafeImageBridge\s*\(\s*\{\s*clipboard\s*,\s*nativeImage\s*\}\s*\)[\s\S]*?\bexpose\s*\(\s*['"]clipboard['"][\s\S]*?\breadImageDataURL\s*:\s*safeImageBridge\s*\.\s*readImageDataURL[\s\S]*?\bexpose\s*\(\s*['"]image['"][\s\S]*?\bresizeDataURL\s*:\s*safeImageBridge\s*\.\s*resizeDataURL/.test(
     preload
   )
 ) {
@@ -175,6 +230,31 @@ if (
     line: 1,
     name: 'safe image preload bridge',
     value: 'createSafeImageBridge bridge missing',
+  })
+}
+
+if (!/\bcontextBridge\s*\.\s*exposeInMainWorld\s*\(/.test(preload)) {
+  findings.push({
+    filePath: 'main/preload.js',
+    line: 1,
+    name: 'contextBridge preload exposure',
+    value: 'contextBridge.exposeInMainWorld missing',
+  })
+}
+
+if (
+  !/RENDERER_CONTENT_SECURITY_POLICY/u.test(rendererProtocol) ||
+  !/["']script-src 'self'["']/u.test(rendererProtocol) ||
+  !/headers\s*\.\s*set\s*\(\s*['"]Content-Security-Policy['"]/u.test(
+    rendererProtocol
+  ) ||
+  /unsafe-eval/u.test(rendererProtocol)
+) {
+  findings.push({
+    filePath: 'main/renderer-protocol.js',
+    line: 1,
+    name: 'renderer content security policy',
+    value: 'strict CSP response header missing or unsafe-eval enabled',
   })
 }
 

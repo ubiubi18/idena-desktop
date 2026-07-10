@@ -12,18 +12,15 @@ function loadPersistModuleWithFailingDb() {
   global.logger = {
     error: jest.fn(),
   }
-  global.prepareDb = jest.fn(() => ({
-    set: jest.fn(() => ({
-      write: jest.fn(() => {
-        throw new Error('write failed')
-      }),
-    })),
-    setState: jest.fn(() => ({
-      write: jest.fn(() => {
-        throw new Error('write failed')
-      }),
-    })),
-  }))
+  global.persistentState = {
+    getState: jest.fn(),
+    set: jest.fn(() => {
+      throw new Error('write failed')
+    }),
+    setState: jest.fn(() => {
+      throw new Error('write failed')
+    }),
+  }
 
   // eslint-disable-next-line global-require
   return require('./persist')
@@ -32,7 +29,7 @@ function loadPersistModuleWithFailingDb() {
 describe('persistent storage logging', () => {
   afterEach(() => {
     delete global.logger
-    delete global.prepareDb
+    delete global.persistentState
     jest.resetModules()
   })
 

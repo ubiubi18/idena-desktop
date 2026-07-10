@@ -2,6 +2,7 @@
 const fs = require('fs')
 const path = require('path')
 const {app} = require('electron')
+const {RENDERER_ORIGIN, isRendererUrl} = require('../renderer-protocol')
 
 const ROUTE_NAME_PATTERN = /^[a-z0-9_-]+(?:\/[a-z0-9_-]+)*$/i
 const STATIC_ROUTE_PREFIXES = ['_next', 'static']
@@ -21,7 +22,7 @@ function resolveDevServerUrl() {
 const DEV_SERVER = resolveDevServerUrl()
 const DEV_SERVER_URL = DEV_SERVER.toString().replace(/\/$/, '')
 const DEV_SERVER_ORIGIN = DEV_SERVER.origin
-const isDev = !app.isPackaged
+const isDev = !app.isPackaged && process.env.IDENA_E2E_SMOKE !== '1'
 
 function normalizeRouteName(routeName) {
   const baseRoute = String(routeName || '')
@@ -60,6 +61,30 @@ function resolvePackagedRouteNameFromUrl(
 ) {
   try {
     const nextUrl = new URL(String(url || ''))
+
+    if (isRendererUrl(nextUrl)) {
+      const rendererRouteName = normalizeRouteName(nextUrl.pathname)
+      if (
+        !rendererRouteName ||
+        STATIC_ROUTE_PREFIXES.some(
+          (prefix) =>
+            rendererRouteName === prefix ||
+            rendererRouteName.startsWith(`${prefix}/`)
+        )
+      ) {
+        return null
+      }
+
+      const rendererRouteFile = path.join(
+        appPath,
+        'renderer',
+        'out',
+        `${rendererRouteName}.html`
+      )
+      return !fileExists || fileExists(rendererRouteFile)
+        ? rendererRouteName
+        : null
+    }
 
     if (nextUrl.protocol !== 'file:') {
       return null
@@ -101,12 +126,14 @@ const loadRoute = (win, routeName) => {
   if (isDev) {
     win.loadURL(`${DEV_SERVER_URL}/${normalizedRouteName}`)
   } else {
-    win.loadFile(resolvePackagedRouteFile(normalizedRouteName))
+    win.loadURL(`${RENDERER_ORIGIN}/${normalizedRouteName}`)
   }
 }
 
 loadRoute.DEV_SERVER_URL = DEV_SERVER_URL
 loadRoute.DEV_SERVER_ORIGIN = DEV_SERVER_ORIGIN
+loadRoute.PACKAGED_RENDERER_ORIGIN = RENDERER_ORIGIN
+loadRoute.isPackagedRendererUrl = isRendererUrl
 loadRoute.normalizeRouteName = normalizeRouteName
 loadRoute.resolvePackagedRouteFile = resolvePackagedRouteFile
 loadRoute.resolvePackagedRouteNameFromUrl = resolvePackagedRouteNameFromUrl

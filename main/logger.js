@@ -1,8 +1,10 @@
 const {platform} = require('process')
+const fs = require('fs')
 const path = require('path')
 const pino = require('pino')
 
 const appDataPath = require('./app-data-path')
+const {hardenPrivateFile} = require('./private-files')
 
 const getSystemVersion =
   process.getSystemVersion || (() => process.version.replace(/^v/, 'node-'))
@@ -26,6 +28,22 @@ const redactPaths = [
   'token',
   '*.token',
   'data.token',
+  'authorization',
+  '*.authorization',
+  'cookie',
+  '*.cookie',
+  'credential',
+  '*.credential',
+  'mnemonic',
+  '*.mnemonic',
+  'passphrase',
+  '*.passphrase',
+  'secret',
+  '*.secret',
+  'seed',
+  '*.seed',
+  'session',
+  '*.session',
   'signature',
   '*.signature',
   'data.signature',
@@ -35,6 +53,8 @@ const redactPaths = [
   '*.encodedPrivateKey',
   'encryptedPrivateKey',
   '*.encryptedPrivateKey',
+  'url',
+  '*.url',
   'hex',
   'data[*].hex',
   'flips[*].hex',
@@ -52,6 +72,7 @@ const redactPaths = [
   'context.longFlips[*].images',
 ]
 
+const logFile = path.join(appDataPath('logs'), 'idena.log')
 const logger = pino(
   {
     level: process.env.LOG_LEVEL || 'debug',
@@ -62,7 +83,8 @@ const logger = pino(
     },
     timestamp: () => `,"time":"${new Date().toISOString()}"`,
   },
-  path.join(appDataPath('logs'), 'idena.log')
+  logFile
 )
+hardenPrivateFile(logFile, {chmodSync: fs.chmodSync})
 
 module.exports = logger

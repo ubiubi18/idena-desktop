@@ -13,13 +13,14 @@ const logger = require('./logger')
 const {
   MIN_NODE_BINARY_SIZE,
   assertSafeNodeDownloadUrl,
+  parseNodeChecksum,
   validateDownloadedNode,
 } = require('./node-download-safety')
 
 const idenaBin = 'idena-go'
 const pinnedNodeVersion = '1.1.2'
 const idenaNodeReleasesUrl =
-  'https://api.github.com/repos/idena-network/idena-go/releases/latest'
+  'https://api.github.com/repos/ubiubi18/idena-go/releases/latest'
 const idenaChainDbFolder = 'idenachain.db'
 
 const getBinarySuffix = () => (process.platform === 'win32' ? '.exe' : '')
@@ -170,35 +171,62 @@ const getNodeLogsFile = () => path.join(getNodeDataDir(), 'logs', 'output.log')
 
 const getNodeErrorFile = () => path.join(getNodeDataDir(), 'logs', 'error.log')
 
-const getReleaseUrl = async () => {
-  const {data} = await axios.get(idenaNodeReleasesUrl)
-  let assetName = 'idena-node-linux'
-  switch (process.platform) {
-    case 'win32':
-      assetName = 'idena-node-win'
-      break
-    case 'darwin':
-      assetName = 'idena-node-mac'
-      break
-    default:
+function getNodeAssetName(version) {
+  let assetPrefix = 'idena-node-linux'
+  if (process.platform === 'win32' && process.arch === 'x64') {
+    assetPrefix = 'idena-node-win'
+  } else if (process.platform === 'darwin' && process.arch === 'arm64') {
+    assetPrefix = 'idena-node-mac-arm64'
+  } else if (process.platform === 'darwin' && process.arch === 'x64') {
+    assetPrefix = 'idena-node-mac'
+  } else if (process.platform === 'linux' && process.arch === 'arm64') {
+    assetPrefix = 'idena-node-linux-aarch64'
+  } else if (process.platform !== 'linux' || process.arch !== 'x64') {
+    return null
   }
 
-  const asset = data.assets.filter((x) => x.name.startsWith(assetName))
+  return `${assetPrefix}-${version}${
+    process.platform === 'win32' ? '.exe' : ''
+  }`
+}
 
-  return asset.length
-    ? assertSafeNodeDownloadUrl(asset[0].browser_download_url)
-    : null
+const getReleaseInfo = async () => {
+  const {data} = await axios.get(idenaNodeReleasesUrl)
+  const version = semver.clean(data.tag_name)
+  const assetName = version && getNodeAssetName(version)
+  if (!version || !assetName) {
+    return null
+  }
+
+  const asset = data.assets.find((candidate) => candidate.name === assetName)
+  const checksumAsset = data.assets.find(
+    (candidate) => candidate.name === `${assetName}.sha256`
+  )
+  if (!asset || !checksumAsset) {
+    return null
+  }
+
+  const url = assertSafeNodeDownloadUrl(asset.browser_download_url)
+  const checksumUrl = assertSafeNodeDownloadUrl(
+    checksumAsset.browser_download_url
+  )
+  const {data: checksumData} = await axios.get(checksumUrl, {
+    responseType: 'text',
+    maxContentLength: 4096,
+    maxBodyLength: 4096,
+  })
+
+  return {
+    assetName,
+    expectedSha256: parseNodeChecksum(String(checksumData), assetName),
+    url,
+    version,
+  }
 }
 
 const getRemoteVersion = async () => {
-  try {
-    const {
-      data: {tag_name: tag},
-    } = await axios.get(idenaNodeReleasesUrl)
-    return semver.clean(tag)
-  } catch (e) {
-    return null
-  }
+  const releaseInfo = await getReleaseInfo()
+  return releaseInfo ? releaseInfo.version : null
 }
 
 async function downloadNode(onProgress) {
@@ -216,15 +244,11 @@ async function downloadNode(onProgress) {
         return
       }
 
-      const url = await getReleaseUrl()
-      const version = await getRemoteVersion()
-
-      if (!url) {
-        throw new Error('Idena node release asset was not found')
+      const releaseInfo = await getReleaseInfo()
+      if (!releaseInfo) {
+        throw new Error('Verified Idena node release asset was not found')
       }
-      if (!version) {
-        throw new Error('Idena node release version was not found')
-      }
+      const {expectedSha256, url, version} = releaseInfo
 
       const response = await axios.request({
         method: 'get',
@@ -249,6 +273,7 @@ async function downloadNode(onProgress) {
             const validatedVersion = await validateDownloadedNode({
               filePath: getTempNodeFile(),
               expectedVersion: version,
+              expectedSha256,
               getBinaryVersion,
               stat: fs.stat,
               chmod: fs.chmod,

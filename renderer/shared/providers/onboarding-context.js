@@ -5,7 +5,7 @@ import {createMachine} from 'xstate'
 import {assign, choose} from 'xstate/lib/actions'
 import {canValidate} from '../../screens/validation/utils'
 import {IdentityStatus, OnboardingStep} from '../types'
-import {requestDb} from '../utils/db'
+import {requestDb, subDb} from '../utils/db'
 import {rewardWithConfetti, shouldCreateFlips} from '../utils/onboarding'
 import {useEpochState} from './epoch-context'
 import {useIdentity} from './identity-context'
@@ -117,9 +117,10 @@ export function OnboardingProvider({children}) {
               dismissedSteps.add(currentStep),
           }),
           persistDismissedSteps: ({dismissedSteps}) =>
-            global
-              .sub(requestDb(), 'onboarding', {valueEncoding: 'json'})
-              .put('onboardingDismissedSteps', [...dismissedSteps]),
+            subDb(requestDb(), 'onboarding', {valueEncoding: 'json'}).put(
+              'onboardingDismissedSteps',
+              [...dismissedSteps]
+            ),
           setIdentity: assign({
             // eslint-disable-next-line no-shadow
             identity: (_, {identity}) => identity,
@@ -129,9 +130,9 @@ export function OnboardingProvider({children}) {
         services: {
           restoreDismissedSteps: async () => {
             try {
-              return await global
-                .sub(requestDb(), 'onboarding', {valueEncoding: 'json'})
-                .get('onboardingDismissedSteps')
+              return await subDb(requestDb(), 'onboarding', {
+                valueEncoding: 'json',
+              }).get('onboardingDismissedSteps')
             } catch {
               return null
             }
