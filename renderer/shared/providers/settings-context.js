@@ -4,6 +4,7 @@ import {usePersistence} from '../hooks/use-persistent-state'
 import {loadPersistentState} from '../utils/persist'
 import {BASE_API_URL, BASE_INTERNAL_API_PORT} from '../api/api-client'
 import useLogger from '../hooks/use-logger'
+import {randomApiKey} from '../utils/random-api-key'
 import {AVAILABLE_LANGS} from '../../i18n'
 
 const SETTINGS_INITIALIZE = 'SETTINGS_INITIALIZE'
@@ -13,11 +14,6 @@ const UPDATE_UI_VERSION = 'UPDATE_UI_VERSION'
 const SET_INTERNAL_KEY = 'SET_INTERNAL_KEY'
 const SET_CONNECTION_DETAILS = 'SET_CONNECTION_DETAILS'
 const TOGGLE_AUTO_ACTIVATE_MINING = 'TOGGLE_AUTO_ACTIVATE_MINING'
-
-const randomKey = () =>
-  Math.random().toString(36).substring(2, 13) +
-  Math.random().toString(36).substring(2, 13) +
-  Math.random().toString(36).substring(2, 15)
 
 const CHANGE_LANGUAGE = 'CHANGE_LANGUAGE'
 
@@ -29,7 +25,7 @@ const initialState = {
   uiVersion: global.appVersion,
   useExternalNode: false,
   runInternalNode: true,
-  internalApiKey: randomKey(),
+  internalApiKey: randomApiKey(),
   externalApiKey: '',
   lng: AVAILABLE_LANGS[0],
   autoActivateMining: true,
@@ -121,7 +117,7 @@ export function SettingsProvider({children}) {
 
   useEffect(() => {
     if (!state.internalApiKey) {
-      dispatch({type: SET_INTERNAL_KEY, data: randomKey()})
+      dispatch({type: SET_INTERNAL_KEY, data: randomApiKey()})
     }
   })
 
