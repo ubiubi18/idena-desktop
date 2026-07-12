@@ -19,7 +19,7 @@ function readJson(filePath) {
 function verifyCompatibilityLock(lock, sources) {
   if (
     lock.schema !== 1 ||
-    lock.releaseId !== 'idena-mainnet-legacy-compat-2026.07.12-rc2' ||
+    lock.releaseId !== 'idena-mainnet-legacy-compat-2026.07.12-rc3' ||
     lock.status !== 'candidate'
   ) {
     throw new Error('Unexpected compatibility lock identity')
