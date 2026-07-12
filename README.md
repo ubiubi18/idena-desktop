@@ -18,6 +18,11 @@ data layout. The bundled node is built from the exact `idena-go` and
 `idena-wasm-binding` commits in `scripts/source-manifest.json`; source setup
 verifies those commits and required files before building.
 
+Those source pins are additionally constrained by
+[`compatibility/stack-lock.json`](compatibility/stack-lock.json). Release
+preflight fails if the desktop manifest drifts from the reviewed
+legacy-compatibility candidate.
+
 ### What was updated
 
 - Node `24.18.0`, npm `11.16.0`, Electron `43.1.0`, Next.js `16.2`, and

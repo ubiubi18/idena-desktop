@@ -45,6 +45,7 @@
     "audit:artifacts": "node scripts/check-release-artifacts.js",
     "audit:deps": "node scripts/check-dependency-footprint.js",
     "audit:electron": "node scripts/check-electron-safety.js",
+    "audit:compatibility": "node scripts/check-compatibility-lock.js",
     "release:check": "node scripts/release-check.js"
   },
   "build": {
