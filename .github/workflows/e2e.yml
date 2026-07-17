@@ -27,6 +27,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends xvfb
 
+      - name: Install pinned Electron binary
+        run: node node_modules/electron/install.js
+
       - name: Configure Electron sandbox
         run: |
           sudo chown root:root node_modules/electron/dist/chrome-sandbox
