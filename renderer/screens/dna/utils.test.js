@@ -1,4 +1,46 @@
-import {urlLogContext} from './utils'
+import apiClient from '../../shared/api/api-client'
+import {signNonce, urlLogContext} from './utils'
+
+const doubleHashVector = require('./testdata/idena_dna_sign_double_hash.json')
+
+jest.mock('../../shared/api/api-client', () => ({
+  __esModule: true,
+  default: jest.fn(),
+}))
+
+describe('Idena signing', () => {
+  beforeEach(() => {
+    apiClient.mockReset()
+  })
+
+  it('requests the explicit doubleHash compatibility format', async () => {
+    const post = jest.fn().mockResolvedValue({
+      data: {result: doubleHashVector.signature_hex},
+    })
+    apiClient.mockReturnValue({post})
+
+    await expect(
+      signNonce(doubleHashVector.value, doubleHashVector.format)
+    ).resolves.toBe(doubleHashVector.signature_hex)
+    expect(post).toHaveBeenCalledWith('/', {
+      method: 'dna_sign',
+      params: [doubleHashVector.value, 'doubleHash'],
+      id: 1,
+    })
+  })
+
+  it('preserves the node default when no signing format is supplied', async () => {
+    const post = jest.fn().mockResolvedValue({data: {result: 'signature'}})
+    apiClient.mockReturnValue({post})
+
+    await expect(signNonce('challenge')).resolves.toBe('signature')
+    expect(post).toHaveBeenCalledWith('/', {
+      method: 'dna_sign',
+      params: ['challenge'],
+      id: 1,
+    })
+  })
+})
 
 describe('dna URL logging', () => {
   it('summarizes URL metadata without query values', () => {

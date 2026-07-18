@@ -163,14 +163,17 @@ function withSearchSourceTimeout(
     })
 }
 
-async function searchDuckDuckGoImages(query, {logger} = {}) {
+async function searchDuckDuckGoImages(
+  query,
+  {logger, requestText = requestHttpsText} = {}
+) {
   try {
     const landingUrl = new URL('https://duckduckgo.com/')
     landingUrl.searchParams.set('q', query)
     landingUrl.searchParams.set('iax', 'images')
     landingUrl.searchParams.set('ia', 'images')
 
-    const html = await requestHttpsText(landingUrl, {
+    const html = await requestText(landingUrl, {
       timeoutMs: 5000,
       maxBytes: 512 * 1024,
     })
@@ -185,7 +188,7 @@ async function searchDuckDuckGoImages(query, {logger} = {}) {
     apiUrl.searchParams.set('f', ',,,')
     apiUrl.searchParams.set('p', '1')
 
-    const json = await requestHttpsText(apiUrl, {
+    const json = await requestText(apiUrl, {
       headers: {
         accept: 'application/json,text/plain,*/*',
         referer: landingUrl.href,
@@ -340,5 +343,6 @@ module.exports = {
     normalizeImageSearchQuery,
     normalizeImageSearchResult,
     normalizeImageSearchUrl,
+    searchDuckDuckGoImages,
   },
 }
