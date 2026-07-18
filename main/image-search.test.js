@@ -5,6 +5,7 @@ const {
     normalizeImageSearchQuery,
     normalizeImageSearchResult,
     normalizeImageSearchUrl,
+    searchDuckDuckGoImages,
   },
 } = require('./image-search')
 
@@ -69,5 +70,50 @@ describe('image search helpers', () => {
         thumbnail: 'https://example.com/b-thumb.jpg',
       },
     ])
+  })
+
+  test('uses the DuckDuckGo landing token for a bounded image request', async () => {
+    const requestText = jest
+      .fn()
+      .mockResolvedValueOnce('<html><script>vqd="token-123"</script></html>')
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          results: [
+            {
+              image: 'https://images.example/full.jpg',
+              thumbnail: 'https://images.example/thumb.jpg',
+            },
+            {
+              image: 'http://images.example/insecure.jpg',
+              thumbnail: 'https://images.example/insecure-thumb.jpg',
+            },
+          ],
+        })
+      )
+
+    await expect(
+      searchDuckDuckGoImages('Idena cryptocurrency', {requestText})
+    ).resolves.toEqual([
+      {
+        image: 'https://images.example/full.jpg',
+        thumbnail: 'https://images.example/thumb.jpg',
+      },
+    ])
+
+    expect(requestText).toHaveBeenCalledTimes(2)
+    const [landingUrl, landingOptions] = requestText.mock.calls[0]
+    expect(landingUrl.origin).toBe('https://duckduckgo.com')
+    expect(landingUrl.pathname).toBe('/')
+    expect(landingUrl.searchParams.get('q')).toBe('Idena cryptocurrency')
+    expect(landingOptions).toEqual({
+      timeoutMs: 5000,
+      maxBytes: 512 * 1024,
+    })
+
+    const [apiUrl, apiOptions] = requestText.mock.calls[1]
+    expect(apiUrl.href.startsWith('https://duckduckgo.com/i.js?')).toBe(true)
+    expect(apiUrl.searchParams.get('q')).toBe('Idena cryptocurrency')
+    expect(apiUrl.searchParams.get('vqd')).toBe('token-123')
+    expect(apiOptions.headers.referer).toBe(landingUrl.href)
   })
 })
