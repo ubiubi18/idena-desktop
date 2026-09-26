@@ -3,13 +3,13 @@ const {parseArgs, sourceFetchRef, sourcePath} = require('./setup-sources')
 const sourceManifest = require('./source-manifest.json')
 
 describe('setup sources script', () => {
-  it('pins the checked rkyv node and native binding commits', () => {
+  it('pins the reviewed DHT node and native binding commits', () => {
     expect(
       Object.fromEntries(
         sourceManifest.sources.map(({name, commit}) => [name, commit])
       )
     ).toEqual({
-      'idena-go': '2b3f6bd04600443c3cc0905a7d5744caff840982',
+      'idena-go': '0e50a50e6f5c158a83cec63f8fade2449e960364',
       'idena-wasm-binding': '01ccca5cc3c94917725964541954a9f20e3412e9',
     })
   })

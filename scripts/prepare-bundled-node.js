@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 const fs = require('fs')
-const os = require('os')
 const path = require('path')
 const {spawnSync} = require('child_process')
 
@@ -63,39 +62,6 @@ function isUsableNodeBinary(binaryPath) {
   return getBinaryVersion(binaryPath) === PINNED_NODE_VERSION
 }
 
-function copyBinary(sourcePath) {
-  fs.mkdirSync(TARGET_DIR, {recursive: true})
-  fs.copyFileSync(sourcePath, TARGET_FILE)
-  fs.chmodSync(TARGET_FILE, 0o755)
-  console.log(`[prepare-bundled-node] Bundled ${sourcePath} -> ${TARGET_FILE}`)
-}
-
-function getExistingNodeCandidates() {
-  let platformProfileDir = path.join(os.homedir(), '.config', 'Idena')
-  if (process.platform === 'darwin') {
-    platformProfileDir = path.join(
-      os.homedir(),
-      'Library',
-      'Application Support',
-      'Idena'
-    )
-  } else if (process.platform === 'win32') {
-    platformProfileDir = path.join(
-      process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'),
-      'Idena'
-    )
-  }
-
-  return [
-    path.join(
-      platformProfileDir,
-      'node',
-      process.platform === 'win32' ? 'idena-go.exe' : 'idena-go'
-    ),
-    process.env.IDENA_DESKTOP_BUNDLED_NODE_SOURCE,
-  ].filter(Boolean)
-}
-
 function hasRequiredSources() {
   return REQUIRED_SOURCE_FILES.every((filePath) => fs.existsSync(filePath))
 }
@@ -121,37 +87,24 @@ function main() {
     return
   }
 
-  if (isUsableNodeBinary(TARGET_FILE)) {
-    console.log(`[prepare-bundled-node] Existing bundle is current`)
-    return
-  }
-
-  for (const candidate of getExistingNodeCandidates()) {
-    if (isUsableNodeBinary(candidate)) {
-      copyBinary(candidate)
-      return
-    }
-  }
-
-  if (!hasRequiredSources()) {
-    run(process.execPath, [path.join(ROOT, 'scripts', 'setup-sources.js')])
-  }
-
-  if (process.platform === 'darwin' && process.arch === 'arm64') {
-    run('/bin/bash', [
-      path.join(ROOT, 'scripts', 'build-node-macos-arm64.sh'),
-      TARGET_FILE,
-    ])
-  } else {
-    run(process.execPath, [
-      path.join(ROOT, 'scripts', 'build-node-from-sources.js'),
-      TARGET_FILE,
-    ])
-  }
+  // Multiple node commits report 1.1.2. Always build from the pinned source;
+  // a matching version string cannot establish that the DHT fix is included.
+  run(process.execPath, [
+    path.join(ROOT, 'scripts', 'setup-sources.js'),
+    ...(hasRequiredSources() ? ['--check'] : []),
+  ])
+  run(process.execPath, [
+    path.join(ROOT, 'scripts', 'build-node-from-sources.js'),
+    TARGET_FILE,
+  ])
 
   if (!isUsableNodeBinary(TARGET_FILE)) {
     throw new Error('prepared bundled idena-go binary is missing or invalid')
   }
 }
 
-main()
+if (require.main === module) {
+  main()
+}
+
+module.exports = {main}
